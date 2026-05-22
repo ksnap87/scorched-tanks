@@ -1072,7 +1072,7 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 // Leopard 2 — 직선 레이저 빔 발사. 지형 관통 (땅 깎임) + 닿는 모든 탱크에 damage.
 function fireLaserBeam(room, shooter, bomb2Spec) {
   const mw = room.mapWidth || CANVAS_WIDTH;
-  // 발사 시점의 탱크 기울기 (effective angle)
+  // 발사 시점의 탱크 기울기 (effective angle) — 클라 포신 회전과 일치 (부호: angle - tiltDeg)
   let tiltDeg = 0;
   if (room.terrain && shooter.siegeMode !== 'sieged') {
     const yL = getTerrainY(room.terrain, shooter.x - 16);
@@ -1080,7 +1080,7 @@ function fireLaserBeam(room, shooter, bomb2Spec) {
     const tr = Math.atan2(yR - yL, 32);
     if (Number.isFinite(tr)) tiltDeg = Math.max(-40, Math.min(40, tr * 180 / Math.PI));
   }
-  const effAngle = (shooter.angle || 90) + tiltDeg;
+  const effAngle = (shooter.angle || 90) - tiltDeg;
   const rad = effAngle * Math.PI / 180;
   // 시작점 (포구) — 포신 끝
   const barrelLen = (BARREL_LEN_BY_TANK[shooter.tankType] || 22) * 1.0;
@@ -1177,19 +1177,21 @@ function simulateProjectile(startX, startY, angle, power, shooter, room) {
   const tankDef = shooter ? getTankDef(shooter.tankType) : getTankDef(DEFAULT_TANK);
   const factor = (tankDef.range || 1.0) * (tankDef.speed || 1.0);
 
-  // 지형 기울기 — 탱크가 기울어진 방향으로 발사도 비스듬히 (시즈모드는 수평 고정)
+  // 지형 기울기 — 클라 포신과 동일한 방향으로 발사 (시즈모드는 수평 고정)
+  // 클라: ctx.rotate(tiltRad) 시계방향 좌표계 안에서 player.angle 로 포신 그림.
+  //   회전된 좌표계의 "위"는 월드 기준 오른쪽 위 (sin(tilt), -cos(tilt)).
+  // 서버 convention: 0=오른쪽, 90=위. 이 방향을 server angle 로 환산하면 angle=90-tiltDeg.
+  //   따라서 일반화: effAngle = userAngle - tiltDeg.
   let tiltDeg = 0;
   if (room && room.terrain && (!shooter || shooter.siegeMode !== 'sieged')) {
     const yL = getTerrainY(room.terrain, startX - 16);
     const yR = getTerrainY(room.terrain, startX + 16);
     const tiltRad = Math.atan2(yR - yL, 32);
     if (Number.isFinite(tiltRad)) {
-      // angle 컨벤션: server 0=오른쪽, 90=수직위, 180=왼쪽
-      // 탱크가 오른쪽이 아래로 기울었으면(yR>yL→tiltRad>0) 탱크 위는 왼쪽으로 회전 → angle 증가
       tiltDeg = Math.max(-40, Math.min(40, tiltRad * 180 / Math.PI));
     }
   }
-  const effAngle = angle + tiltDeg;
+  const effAngle = angle - tiltDeg;
   const radians = effAngle * Math.PI / 180;
 
   // 포신 끝(머즐)에서 발사 — 탱크 포탑 중심 (startY - 4) 기준
