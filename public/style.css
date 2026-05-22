@@ -40,8 +40,19 @@ body {
 
 .lobby-container {
   text-align: center;
-  width: 1400px;
+  width: 1440px;
   max-width: 96vw;
+}
+/* 디자인 토큰 */
+.lobby-content {
+  --c-primary: #1E90FF;
+  --c-accent: #A855F7;
+  --c-warn: #FFD93D;
+  --c-danger: #FF4757;
+  --c-bg-card: linear-gradient(165deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
+  --c-border-card: rgba(255, 255, 255, 0.13);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-lift: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .lobby-content {
@@ -717,11 +728,12 @@ body {
   align-items: center;
   gap: 10px;
   margin-bottom: 1.2rem;
-  padding: 10px 14px;
-  background: rgba(30, 144, 255, 0.08);
-  border: 1px solid rgba(30, 144, 255, 0.25);
+  padding: 12px 18px;
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.14), rgba(168, 85, 247, 0.10));
+  border: 1px solid rgba(30, 144, 255, 0.4);
   border-radius: 12px;
   backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(30, 144, 255, 0.15);
 }
 
 .room-info-block {
@@ -734,18 +746,23 @@ body {
 
 .ri-label {
   font-family: 'Orbitron', monospace;
-  font-size: 0.7rem;
-  color: #888;
-  letter-spacing: 2px;
+  font-size: 0.8rem;
+  color: #aaa;
+  letter-spacing: 2.5px;
+  font-weight: 700;
 }
 
 .ri-code {
   font-family: 'Orbitron', monospace;
-  font-size: 1.4rem;
+  font-size: 1.7rem;
   font-weight: 900;
-  color: #1E90FF;
-  letter-spacing: 4px;
-  text-shadow: 0 0 12px rgba(30, 144, 255, 0.5);
+  color: #fff;
+  letter-spacing: 5px;
+  text-shadow: 0 0 20px rgba(30, 144, 255, 0.7);
+  background: linear-gradient(135deg, #1E90FF, #A855F7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .btn-room {
@@ -774,25 +791,26 @@ body {
 
 .game-title {
   font-family: 'Orbitron', monospace;
-  font-size: 3rem;
+  font-size: 3.4rem;
   font-weight: 900;
   background: linear-gradient(135deg, #FF4757, #FFA502, #2ED573, #1E90FF, #A855F7);
   background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: gradientShift 4s ease infinite;
-  margin-bottom: 0.3rem;
-  letter-spacing: 3px;
-  text-shadow: 0 0 60px rgba(255, 71, 87, 0.3);
+  margin: 1rem 0 0.3rem;
+  letter-spacing: 4px;
+  filter: drop-shadow(0 0 30px rgba(30, 144, 255, 0.4));
 }
 
 .game-subtitle {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 1rem;
-  color: #666;
-  letter-spacing: 6px;
+  font-size: 1.05rem;
+  color: #999;
+  letter-spacing: 8px;
   text-transform: uppercase;
-  margin-bottom: 2rem;
+  margin-bottom: 1.6rem;
+  font-weight: 600;
 }
 
 @keyframes gradientShift {
@@ -952,14 +970,32 @@ body {
 
 .tank-card:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(30, 144, 255, 0.4);
-  transform: translateY(-1px);
+  border-color: rgba(30, 144, 255, 0.55);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(30, 144, 255, 0.25);
 }
 
 .tank-card.selected {
-  background: linear-gradient(135deg, rgba(30, 144, 255, 0.18), rgba(168, 85, 247, 0.18));
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.22), rgba(168, 85, 247, 0.22));
   border-color: #1E90FF;
-  box-shadow: 0 0 18px rgba(30, 144, 255, 0.5);
+  box-shadow: 0 0 24px rgba(30, 144, 255, 0.6), 0 0 60px rgba(30, 144, 255, 0.18);
+  transform: translateY(-2px);
+}
+.tank-card.selected::after {
+  content: '✓ 선택됨';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #1E90FF;
+  background: rgba(30, 144, 255, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+.tank-card {
+  position: relative;
 }
 
 .tc-head {
@@ -1137,10 +1173,15 @@ body {
 
 .lc-header {
   font-family: 'Orbitron', monospace;
-  font-size: 0.85rem;
-  color: #888;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #e0e0e0;
   letter-spacing: 3px;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.8rem;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(30, 144, 255, 0.18), rgba(168, 85, 247, 0.18));
+  border-radius: 8px;
+  border: 1px solid rgba(30, 144, 255, 0.3);
   text-align: center;
 }
 
