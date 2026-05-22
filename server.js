@@ -1401,11 +1401,74 @@ function startFire(room, player, weaponType, useDouble) {
         ultName: ult.name,
       };
       broadcastState(room);
-      setTimeout(() => {
-        applyExplosion(room, detonateX, detonateY, 'laser_guided', null, player);
-        if (room.airstrike) room.airstrike.phase = 'bombing';
-        broadcastState(room);
-      }, AIRSTRIKE_INCOMING_MS);
+
+      // === B-2 카펫 폭격: 시각이랑 정확히 일치하도록 8발 분산 ===
+      // 클라 drawB2Spirit 의 jetXAt 와 동일 공식 사용. 폭탄 i 는 (incoming - 1000 + i*dropInterval) 시점에 jetXAt 위치에서 자유낙하.
+      // 자유낙하 시간 약 1500ms 의 가속 곡선 끝점이 a.targetY → 폭탄 i 의 폭발 X = jetXAt(myDropStart)
+      const isCarpet = ult.kind === 'b2_carpet' || ult.kind === 'f22_carpet';
+      if (isCarpet) {
+        const mw = room.mapWidth || CANVAS_WIDTH;
+        const fromLeft = detonateX < mw / 2;
+        const startX_b = fromLeft ? -180 : mw + 180;
+        const bombCount = 8;
+        const incoming = AIRSTRIKE_INCOMING_MS;
+        const dropWindowStart = incoming - 1000;
+        const dropWindowEnd = incoming - 50;
+        const dropInterval = (dropWindowEnd - dropWindowStart) / (bombCount - 1);
+        // 각 폭탄의 X 위치를 클라 jetXAt 공식과 정확히 일치하게 계산
+        function jetXAtServer(eAt) {
+          const t = eAt / incoming;
+          return startX_b + (detonateX - startX_b) * (1 - Math.pow(1 - t, 1.5));
+        }
+        // 폭탄 i 가 떨어진 시점 + 낙하 1500ms 후 폭발 → 폭발 시점이 시각상 폭탄이 지면에 닿는 시점
+        // sub-explosion 당 데미지/반경은 ult 의 ~25% (8발 분산되니 한 탱크가 보통 1~3발 맞음)
+        const subDamage = Math.max(8, Math.round(ult.damage * 0.5));
+        const subRadius = Math.max(12, Math.round(ult.radius * 0.55));
+        const fallMs = 1500;
+        // ult.damage / radius 는 applyExplosion 의 ammo lookup 으로 사용되므로,
+        // 일시적으로 player 의 가짜 tankDef 사용 대신 직접 폭발 호출
+        for (let i = 0; i < bombCount; i++) {
+          const myDropStart = dropWindowStart + i * dropInterval;
+          const bombX = jetXAtServer(myDropStart);
+          // 맵 wrap
+          let bx = bombX;
+          if (bx < 0) bx += mw;
+          else if (bx >= mw) bx -= mw;
+          const bombTerrainY = getTerrainY(room.terrain, bx);
+          const detonateAt = AIRSTRIKE_INCOMING_MS - (incoming - myDropStart - fallMs);
+          // 위 공식: 폭탄 i 가 시각상 지면 도달하는 시점 = myDropStart + fallMs (relative to airstrike start)
+          // 이 시점에 폭발 발사. clamp 안전망.
+          const fireAtMs = Math.max(50, Math.min(AIRSTRIKE_INCOMING_MS + 200, myDropStart + fallMs));
+          setTimeout(() => {
+            if (room.phase !== 'playing') return;
+            // 직접 폭발 (laser_guided 와 동일 path, 단 damage/radius override 위해 일시 ult 복사 안 함)
+            // applyExplosion 의 laser_guided 분기는 ult 의 damage/radius 사용. carpet 의 경우 한 발 = 작은 폭발.
+            // 트릭: 임시로 player.tankType 의 ult.damage/radius 를 sub 로 바꾸고 호출 후 원복.
+            const td = getTankDef(player.tankType);
+            const origDmg = td.ultimate.damage;
+            const origRad = td.ultimate.radius;
+            const origTR = td.ultimate.terrainRadius;
+            td.ultimate.damage = subDamage;
+            td.ultimate.radius = subRadius;
+            td.ultimate.terrainRadius = Math.max(8, Math.round((origTR || subRadius) * 0.55));
+            applyExplosion(room, bx, bombTerrainY, 'laser_guided', null, player);
+            td.ultimate.damage = origDmg;
+            td.ultimate.radius = origRad;
+            td.ultimate.terrainRadius = origTR;
+          }, fireAtMs);
+        }
+        setTimeout(() => {
+          if (room.airstrike) room.airstrike.phase = 'bombing';
+          broadcastState(room);
+        }, AIRSTRIKE_INCOMING_MS);
+      } else {
+        // 단발 폭발 (다른 ult — kamikaze/army/drone/satellite/stuka)
+        setTimeout(() => {
+          applyExplosion(room, detonateX, detonateY, 'laser_guided', null, player);
+          if (room.airstrike) room.airstrike.phase = 'bombing';
+          broadcastState(room);
+        }, AIRSTRIKE_INCOMING_MS);
+      }
       setTimeout(() => {
         room.airstrike = null;
         broadcastState(room);
