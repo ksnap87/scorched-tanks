@@ -97,14 +97,26 @@ app.get('/api/auth/me', async (req, res) => {
 
 app.get('/api/leaderboard', async (req, res) => {
   if (!AUTH_ENABLED) return res.json({ entries: [] });
+  // K/D 랭킹 — 서버 측에서 계산 후 정렬 (kills / max(1, losses))
   const { data, error } = await supabase
     .from('users')
     .select('username, wins, losses, total_games, total_kills, total_damage')
-    .order('wins', { ascending: false })
-    .order('total_kills', { ascending: false })
-    .limit(20);
+    .limit(200);
   if (error) return authError(res, 500, error.message);
-  res.json({ entries: data || [] });
+  const entries = (data || []).map(u => {
+    const losses = u.losses || 0;
+    const kills = u.total_kills || 0;
+    const games = u.total_games || 0;
+    const kd = kills / Math.max(1, losses);
+    return { ...u, kd: Number(kd.toFixed(2)) };
+  }).filter(e => (e.total_games || 0) >= 1)
+    .sort((a, b) => {
+      if (b.kd !== a.kd) return b.kd - a.kd;
+      if (b.total_kills !== a.total_kills) return b.total_kills - a.total_kills;
+      return (b.wins || 0) - (a.wins || 0);
+    })
+    .slice(0, 20);
+  res.json({ entries });
 });
 
 app.get('/api/stats/:username', async (req, res) => {
@@ -235,42 +247,49 @@ const TANK_NAMES = [
 // bomb2: REDBEAN 자리 특수탄 (탱크별 다름)
 //   - kind: 'redbean'|'multi'|'uranium'|'guided'|'shotgun'
 const TANK_TYPES = {
+  // 카운터 구도 (가위바위보):
+  // K2 → T10/ZTZ99 (빨콩 직격) / 약점: 사거리 짧음 → LEO2/T90 에 약함
+  // M1A2 → T90/LEO2 (탱키 + 광역) / 약점: 느림 → T10/K2 의 정확한 직격에 약함
+  // T90 → M1A2/K2 (DOT 누적) / 약점: AP 좁음 → 광역(ZTZ/M1A2)에 약함
+  // T10 → LEO2/M1A2 (기동 + 유도) / 약점: HP/사거리 → ZTZ99 광역에 약함
+  // ZTZ99 → T10/T90 (광역 화염) / 약점: 사거리 최단 → LEO2/K2 의 거리유지에 약함
+  // LEO2 → ZTZ99/K2 (사거리/관통) / 약점: HP 최약 → T10/M1A2 의 접근/직격에 약함
   K2:    { id: 'K2',    name: 'K2 흑표',         country: '한국',   flag: '🇰🇷',
-           hp: 120, range: 0.8, move: 150, speed: 1.0, moveSpeed: 2.0,
-           desc: '올라운더 · 빨콩',
+           hp: 125, range: 0.85, move: 150, speed: 1.0, moveSpeed: 2.0,
+           desc: '단발 직격형 · 빨콩 65',
            ammo:  { kind: 'HE',     radius: 11, damage: 32 },
-           bomb2: { kind: 'redbean', name: '빨콩',  damage: 55, radius: 6,  range: 1.3 },
-           ultimate: { kind: 'army_missile',    name: '한화 유도탄',   damage: 75, radius: 12, terrainRadius: 18 } },
+           bomb2: { kind: 'redbean', name: '빨콩',  damage: 65, radius: 8,  range: 1.3 },
+           ultimate: { kind: 'army_missile',    name: '한화 유도탄',   damage: 78, radius: 12, terrainRadius: 18 } },
   M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸',
-           hp: 140, range: 1.0, move: 100, speed: 1.0, moveSpeed: 1.5,
-           desc: '탱키 · 카펫 폭격',
-           ammo:  { kind: 'HE',     radius: 13, damage: 34 },
-           bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 12, radius: 4, range: 1.0, multi: 4, multiSpreadPx: 28, subDamageRatio: 0.85 },
-           ultimate: { kind: 'b2_carpet',       name: 'B-2 스피릿',    damage: 44, radius: 45, terrainRadius: 18 } },
+           hp: 140, range: 1.0, move: 95, speed: 1.0, moveSpeed: 1.4,
+           desc: '탱키 (HP 140) · 멀티/카펫 · 느림',
+           ammo:  { kind: 'HE',     radius: 12, damage: 30 },
+           bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 13, radius: 4, range: 1.0, multi: 4, multiSpreadPx: 28, subDamageRatio: 0.85 },
+           ultimate: { kind: 'b2_carpet',       name: 'B-2 스피릿',    damage: 40, radius: 42, terrainRadius: 16 } },
   T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺',
-           hp: 130, range: 1.2, move: 130, speed: 1.0, moveSpeed: 1.3,
-           desc: 'AP 관통 · 우라늄 DOT',
-           ammo:  { kind: 'AP',     radius: 5,  damage: 34, pierce: 1.15 },
-           bomb2: { kind: 'uranium', name: '우라늄탄', damage: 12, radius: 10, range: 1.2, dotRadius: 24, dotDps: 2.5, dotDuration: 8 },
-           ultimate: { kind: 'drone_grenade',   name: '드론 수류탄',   damage: 35, radius: 8,  terrainRadius: 10 } },
+           hp: 128, range: 1.2, move: 130, speed: 1.0, moveSpeed: 1.3,
+           desc: 'AP 관통 · 우라늄 DOT 영역',
+           ammo:  { kind: 'AP',     radius: 6,  damage: 36, pierce: 1.20 },
+           bomb2: { kind: 'uranium', name: '우라늄탄', damage: 15, radius: 12, range: 1.2, dotRadius: 28, dotDps: 3, dotDuration: 9 },
+           ultimate: { kind: 'drone_grenade',   name: '드론 수류탄',   damage: 38, radius: 8,  terrainRadius: 10 } },
   T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵',
-           hp: 115, range: 0.7, move: 170, speed: 1.0, moveSpeed: 2.3,
-           desc: '닌자 · 정밀 유도',
-           ammo:  { kind: 'HE',     radius: 9,  damage: 27 },
-           bomb2: { kind: 'guided', name: '정밀 유도탄', damage: 34, radius: 13, range: 0.95, guideMs: 5000 },
-           ultimate: { kind: 'kamikaze',        name: '카미카제',      damage: 55, radius: 24, terrainRadius: 22 } },
+           hp: 110, range: 0.65, move: 175, speed: 1.0, moveSpeed: 2.4,
+           desc: '닌자 (기동 175/2.4) · 정밀 유도',
+           ammo:  { kind: 'HE',     radius: 10, damage: 29 },
+           bomb2: { kind: 'guided', name: '정밀 유도탄', damage: 38, radius: 14, range: 0.95, guideMs: 5000 },
+           ultimate: { kind: 'kamikaze',        name: '카미카제',      damage: 58, radius: 24, terrainRadius: 22 } },
   ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳',
-           hp: 115, range: 0.6, move: 120, speed: 1.0, moveSpeed: 1.3,
-           desc: '광역 DOT · 위성 레이저',
-           ammo:  { kind: 'HE',     radius: 15, damage: 30 },
-           bomb2: { kind: 'shotgun', name: '화염탄', damage: 18, radius: 28, range: 0.8, airBurst: 50, fire: { radius: 40, dps: 2, duration: 8 } },
+           hp: 118, range: 0.55, move: 125, speed: 1.0, moveSpeed: 1.4,
+           desc: '광역 화염 DOT · 위성 레이저',
+           ammo:  { kind: 'HE',     radius: 15, damage: 28 },
+           bomb2: { kind: 'shotgun', name: '화염탄', damage: 18, radius: 30, range: 0.8, airBurst: 50, fire: { radius: 42, dps: 2.5, duration: 8 } },
            ultimate: { kind: 'satellite_laser', name: '위성 레이저',   damage: 70, radius: 5,  terrainRadius: 28 } },
   LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪',
-           hp: 95, range: 1.4, move: 120, speed: 1.0, moveSpeed: 1.0,
-           desc: '저격형 · 레이저빔',
-           ammo:  { kind: 'APFSDS', radius: 18, damage: 38, pierce: 1.20 },
-           bomb2: { kind: 'laser_beam', name: '레이저', damage: 36, range: 260, beamWidth: 8, terrainDig: 14 },
-           ultimate: { kind: 'stuka_dive',       name: 'Stuka 급강하',  damage: 45, radius: 15, terrainRadius: 15 } },
+           hp: 88, range: 1.5, move: 115, speed: 1.0, moveSpeed: 1.0,
+           desc: '저격수 (사거리 1.5×) · HP 최약',
+           ammo:  { kind: 'APFSDS', radius: 16, damage: 36, pierce: 1.20 },
+           bomb2: { kind: 'laser_beam', name: '레이저', damage: 34, range: 250, beamWidth: 8, terrainDig: 12 },
+           ultimate: { kind: 'stuka_dive',       name: 'Stuka 급강하',  damage: 44, radius: 15, terrainRadius: 15 } },
 };
 const DEFAULT_TANK = 'K2';
 function getTankDef(id) { return TANK_TYPES[id] || TANK_TYPES[DEFAULT_TANK]; }

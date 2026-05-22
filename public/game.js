@@ -178,17 +178,16 @@ async function openLeaderboard() {
       return;
     }
     const rows = entries.map((e, i) => {
-      const total = e.total_games || 0;
-      const wins = e.wins || 0;
-      const rate = total > 0 ? ((wins / total) * 100).toFixed(1) : '0.0';
+      const kd = (e.kd != null) ? e.kd.toFixed(2) : '0.00';
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
-      return `<tr><td>${medal}</td><td>${e.username}</td><td>${wins}</td><td>${e.losses || 0}</td><td>${rate}%</td><td>${e.total_kills || 0}</td><td>${e.total_damage || 0}</td></tr>`;
+      return `<tr><td>${medal}</td><td>${e.username}</td><td><b>${kd}</b></td><td>${e.total_kills || 0}</td><td>${e.losses || 0}</td><td>${e.wins || 0}</td><td>${e.total_damage || 0}</td></tr>`;
     }).join('');
     document.getElementById('statsModalBody').innerHTML = `
       <table class="stats-table">
-        <thead><tr><th>순위</th><th>아이디</th><th>승</th><th>패</th><th>승률</th><th>킬</th><th>데미지</th></tr></thead>
+        <thead><tr><th>순위</th><th>아이디</th><th>K/D</th><th>킬</th><th>패</th><th>승</th><th>데미지</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      <div style="font-size:0.7rem;color:#777;margin-top:6px;text-align:center;">K/D = 총 킬 / max(1, 총 패배)</div>
     `;
   } catch (e) {
     document.getElementById('statsModalBody').innerHTML = `<div class="stats-error">조회 실패: ${e.message}</div>`;
