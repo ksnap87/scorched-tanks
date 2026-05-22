@@ -1878,25 +1878,28 @@ function drawB2Spirit(a, elapsed, incoming, linger) {
   }
   ctx.restore();
 
-  // ===== 폭탄 세로 일점 투하 — 8발 모두 targetX 한 곳에 시간차로 순차 낙하 =====
+  // ===== 폭탄 순차 투하 — 좌우 살짝 분산, 시간차 명확 =====
+  // 8발이 약 200ms 간격으로 떨어져 각자가 지면에 닿을 때마다 폭발/지형 파괴
   const bombCount = 8;
-  const dropWindowStart = incoming - 500;    // 첫 폭탄 투하
-  const dropWindowEnd = incoming + 100;      // 마지막 폭탄 투하
+  const dropWindowStart = incoming - 1000;   // 첫 폭탄 (비행기 진입 중)
+  const dropWindowEnd = incoming + 100;      // 마지막 폭탄
   const dropInterval = (dropWindowEnd - dropWindowStart) / (bombCount - 1);
   const FALL_MS = 800;
+  const SPREAD_PX = 14;                       // 폭탄 X 간격 (±49px 분산)
   for (let i = 0; i < bombCount; i++) {
     const myDropStart = dropWindowStart + i * dropInterval;
     if (elapsed < myDropStart) continue;
     const localElapsed = elapsed - myDropStart;
     if (localElapsed > FALL_MS + 500) continue;
-    // 모든 폭탄의 X = targetX 고정 (한 점에 세로로 떨어짐)
-    const bombX = a.targetX;
+    // 좌우 살짝 분산: targetX 중심 ± (i − 3.5) × SPREAD
+    const bombX = a.targetX + (i - 3.5) * SPREAD_PX;
     // 자유낙하 (가속, 지면 도달까지)
-    const fallStart = 30;                    // 화면 위에서부터
-    const fallEnd = a.targetY - 2;
+    const fallStart = 30;
+    // 각 폭탄 X 위치의 지면을 fallEnd 로 (지형 따라 다른 높이)
+    const fallEnd = (state.terrain ? getClientTerrainY(bombX) : a.targetY) - 2;
     const tFall = Math.min(1, localElapsed / FALL_MS);
     const by = fallStart + (fallEnd - fallStart) * (tFall * tFall);
-    if (by > a.targetY) continue;
+    if (by > fallEnd + 2) continue;
     // 폭탄 동체
     ctx.fillStyle = '#2a2d36';
     ctx.beginPath();

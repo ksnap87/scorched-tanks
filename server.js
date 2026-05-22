@@ -1407,25 +1407,31 @@ function startFire(room, player, weaponType, useDouble) {
       // 자유낙하 시간 약 1500ms 의 가속 곡선 끝점이 a.targetY → 폭탄 i 의 폭발 X = jetXAt(myDropStart)
       const isCarpet = ult.kind === 'b2_carpet' || ult.kind === 'f22_carpet';
       if (isCarpet) {
-        // === B-2 세로 일점 투하 — 8발이 모두 detonateX 한 곳에 시간차로 떨어짐 ===
+        // === B-2 순차 투하 — 8발 좌우 살짝 분산 + 시간차로 각자 폭발 ===
         const bombCount = 8;
         const incoming = AIRSTRIKE_INCOMING_MS;
-        // 클라 drawB2Spirit 와 동일한 타이밍
-        const dropWindowStart = incoming - 500;
+        // 클라 drawB2Spirit 와 동일한 타이밍 + spread
+        const dropWindowStart = incoming - 1000;
         const dropWindowEnd = incoming + 100;
         const dropInterval = (dropWindowEnd - dropWindowStart) / (bombCount - 1);
         const fallMs = 800;
-        // sub-explosion 데미지/반경 — 한 점 8발이라 누적 OP 방지
+        const SPREAD_PX = 14;                  // 폭탄 X 간격 (±49px 분산)
         const subDamage = Math.max(8, Math.round(ult.damage * 0.28));
         const subRadius = Math.max(10, Math.round(ult.radius * 0.4));
-        const bombTerrainY = getTerrainY(room.terrain, detonateX);
+        const mw = room.mapWidth || CANVAS_WIDTH;
         for (let i = 0; i < bombCount; i++) {
           const myDropStart = dropWindowStart + i * dropInterval;
-          // 시각상 폭탄이 지면에 닿는 시점 = myDropStart + fallMs (relative to airstrike start)
+          // 폭탄 X (클라와 정확히 일치하는 식)
+          let bombX = detonateX + (i - 3.5) * SPREAD_PX;
+          // 맵 wrap
+          if (bombX < 0) bombX += mw;
+          else if (bombX >= mw) bombX -= mw;
+          const bx = bombX;
+          const bombTerrainY = getTerrainY(room.terrain, bx);
+          // 시각상 폭탄이 지면에 닿는 시점 = myDropStart + fallMs
           const fireAtMs = Math.max(50, Math.min(AIRSTRIKE_INCOMING_MS + AIRSTRIKE_LINGER_MS - 100, myDropStart + fallMs));
           setTimeout(() => {
             if (room.phase !== 'playing') return;
-            // 임시 ult override 후 폭발 호출
             const td = getTankDef(player.tankType);
             const origDmg = td.ultimate.damage;
             const origRad = td.ultimate.radius;
@@ -1433,10 +1439,12 @@ function startFire(room, player, weaponType, useDouble) {
             td.ultimate.damage = subDamage;
             td.ultimate.radius = subRadius;
             td.ultimate.terrainRadius = Math.max(8, Math.round((origTR || subRadius) * 0.55));
-            applyExplosion(room, detonateX, bombTerrainY, 'laser_guided', null, player);
+            applyExplosion(room, bx, bombTerrainY, 'laser_guided', null, player);
             td.ultimate.damage = origDmg;
             td.ultimate.radius = origRad;
             td.ultimate.terrainRadius = origTR;
+            // 폭발 즉시 broadcast — 클라가 폭발/지형변화를 바로 받음
+            broadcastState(room);
           }, fireAtMs);
         }
         setTimeout(() => {
