@@ -325,26 +325,19 @@ function nextTurnInner(room) {
       room.scores[winnerId] += 100;
     }
 
-    room.round++;
+    // 한 명만 살아남으면 즉시 게임 종료 (라운드제 폐지)
     if (room.itemSpawnTimer) { clearTimeout(room.itemSpawnTimer); room.itemSpawnTimer = null; }
     room.itemBoxes = [];
     room.airstrike = null;
 
-    if (room.round > room.maxRounds) {
-      room.phase = 'gameover';
-      broadcastState(room);
-      if (room.turnTimer) { clearInterval(room.turnTimer); room.turnTimer = null; }
-      if (room.itemSpawnTimer) { clearTimeout(room.itemSpawnTimer); room.itemSpawnTimer = null; }
+    room.phase = 'gameover';
+    broadcastState(room);
+    if (room.turnTimer) { clearInterval(room.turnTimer); room.turnTimer = null; }
 
-      if (room.lobbyReturnTimer) clearTimeout(room.lobbyReturnTimer);
-      // 게임 종료 → 5초 동안 결과 보여주고 자동으로 대기방으로 (새 게임 자동 시작 X)
-      room.gameoverEndsAt = Date.now() + 5000;
-      io.to(room.id).emit('gameoverInfo', { endsAt: room.gameoverEndsAt });
-      room.lobbyReturnTimer = setTimeout(() => resetToLobby(room), 5000);
-      return;
-    }
-
-    setTimeout(() => startNewRound(room), 3000);
+    if (room.lobbyReturnTimer) clearTimeout(room.lobbyReturnTimer);
+    room.gameoverEndsAt = Date.now() + 5000;
+    io.to(room.id).emit('gameoverInfo', { endsAt: room.gameoverEndsAt });
+    room.lobbyReturnTimer = setTimeout(() => resetToLobby(room), 5000);
     return;
   }
 

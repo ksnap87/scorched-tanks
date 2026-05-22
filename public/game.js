@@ -466,7 +466,7 @@ function toggleGameChat() {
 function updateHUD() {
   if (!state) return;
 
-  hudRound.textContent = `${state.round} / ${state.maxRounds}`;
+  if (hudRound) hudRound.textContent = `${state.round} / ${state.maxRounds}`;
   if (hudRoom) hudRoom.textContent = roomId;
 
   const currentPlayer = state.players[state.currentTurn];
