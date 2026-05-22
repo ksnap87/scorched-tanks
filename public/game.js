@@ -570,7 +570,7 @@ function moveTankByDistance(direction) {
     return;
   }
   let dist = parseInt(moveDistInput && moveDistInput.value);
-  if (!Number.isFinite(dist) || dist <= 0) dist = 20;
+  if (!Number.isFinite(dist) || dist <= 0) dist = 7;
   dist = Math.max(1, Math.min(200, dist));
   const actual = Math.min(dist, me.moveBudget ?? 0);
   const optimistic = Math.max(0, (me.moveBudget ?? 0) - actual);
