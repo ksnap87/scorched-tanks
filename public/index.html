@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
+  <title>SCORCHED EARTH | Tank Battle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- LOBBY -->
+  <div id="lobby">
+    <div class="lobby-container">
+      <h1 class="game-title">SCORCHED EARTH</h1>
+      <p class="game-subtitle">Tank Artillery Battle</p>
+
+      <!-- ROOM INFO BAR -->
+      <div class="room-info-bar">
+        <div class="room-info-block">
+          <span class="ri-label">ROOM</span>
+          <span class="ri-code" id="roomCode">—</span>
+        </div>
+        <button class="btn-room" id="btnCopyLink" onclick="copyRoomLink()">🔗 COPY LINK</button>
+        <button class="btn-room" id="btnNewRoom" onclick="createNewRoom()">+ NEW ROOM</button>
+      </div>
+
+      <div class="lobby-content">
+        <!-- 왼쪽: 플레이어 + 시작 -->
+        <div class="lobby-panel">
+          <div class="name-input-group">
+            <input type="text" id="nameInput" placeholder="Enter your name..." maxlength="12" autocomplete="off">
+            <button class="btn" style="padding: 12px 20px; font-size: 0.8rem; background: #1E90FF; color: #fff; border-radius: 10px;" onclick="setName()">SET</button>
+          </div>
+
+          <div class="player-list">
+            <h3>PLAYERS</h3>
+            <div class="player-slots" id="playerSlots"></div>
+          </div>
+
+          <button class="btn btn-start" id="btnStart" onclick="startGame()" disabled>
+            START BATTLE
+          </button>
+
+          <div class="key-hints" style="margin-top: 1rem; line-height: 1.8;">
+            <kbd>←</kbd><kbd>→</kbd> Angle &nbsp;
+            <kbd>↑</kbd><kbd>↓</kbd> Power &nbsp;
+            <kbd>SPACE</kbd> Fire <br>
+            <kbd>A</kbd><kbd>D</kbd> Move &nbsp;
+            <kbd>X</kbd> Double Shot &nbsp;
+            <kbd>ENTER</kbd> Chat
+          </div>
+        </div>
+
+        <!-- 오른쪽: 채팅 -->
+        <div class="lobby-chat">
+          <div class="lc-header">💬 CHAT</div>
+          <div class="chat-messages" id="lobbyChatMessages"></div>
+          <div class="chat-input-row">
+            <input type="text" id="lobbyChatInput" placeholder="메시지 입력..." maxlength="200" autocomplete="off">
+            <button class="btn-chat-send" onclick="sendChatFromLobby()">SEND</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="1400" height="700"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div class="hud-left">
+        <div class="hud-info">
+          <div class="label">ROOM</div>
+          <div class="value" id="hudRoom">—</div>
+        </div>
+        <div class="hud-info">
+          <div class="label">ROUND</div>
+          <div class="value" id="hudRound">1 / 5</div>
+        </div>
+      </div>
+
+      <div class="hud-center">
+        <div class="hud-info turn-indicator" id="turnInfo">
+          <div class="turn-dot" id="turnDot"></div>
+          <span id="turnName" style="font-weight: 700; color: #fff;">—</span>
+          <span style="color: #666; font-size: 0.7rem; letter-spacing: 2px;">TURN</span>
+        </div>
+        <div class="timer-circle" id="timerCircle">30</div>
+      </div>
+
+      <div class="hud-right">
+        <div class="hud-info wind-display">
+          <div class="label">WIND</div>
+          <span class="wind-arrow" id="windArrow">→</span>
+          <div class="value" id="windValue">0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controls">
+      <div class="control-group move-group">
+        <span class="ctrl-label">MOVE</span>
+        <button class="btn-move" id="btnMoveLeft" onclick="moveTankByDistance(-1)">◀</button>
+        <input type="number" id="moveDistInput" class="num-input" min="1" max="200" value="20" title="이동 거리 (px)">
+        <button class="btn-move" id="btnMoveRight" onclick="moveTankByDistance(1)">▶</button>
+        <span class="ctrl-sub">/ <span id="moveBudgetValue">200</span></span>
+      </div>
+      <div class="control-group">
+        <span class="ctrl-label">ANGLE</span>
+        <input type="range" id="angleSlider" min="0" max="180" value="45">
+        <input type="number" id="angleInput" class="num-input" min="0" max="180" value="45">
+        <span class="ctrl-unit">°</span>
+      </div>
+      <div class="control-group">
+        <span class="ctrl-label">POWER</span>
+        <input type="range" id="powerSlider" min="5" max="150" value="50">
+        <input type="number" id="powerInput" class="num-input" min="5" max="150" value="50">
+      </div>
+      <div class="control-group weapon-group">
+        <span class="ctrl-label">WEAPON</span>
+        <button class="btn-weapon active" data-weapon="normal" onclick="selectWeapon('normal')">NORMAL</button>
+        <button class="btn-weapon w-redbean" data-weapon="redbean" onclick="selectWeapon('redbean')">RED BEAN</button>
+        <button class="btn-weapon w-laser" data-weapon="laser_guided" onclick="selectWeapon('laser_guided')" disabled>🚀 LASER × <span id="laserCountInBtn">0</span></button>
+      </div>
+      <button class="btn-doubleshot" id="btnDoubleShot" onclick="toggleDoubleShot()">
+        ⚡ DOUBLE × <span id="doubleShotCount">2</span>
+      </button>
+      <button class="btn-fire" id="btnFire" onclick="fire()">🔥 FIRE</button>
+    </div>
+
+    <!-- In-game Chat (collapsible) -->
+    <div class="game-chat" id="gameChat">
+      <div class="gc-header" onclick="toggleGameChat()">
+        <span>💬 CHAT</span>
+        <span class="gc-toggle-icon" id="gcToggleIcon">▼</span>
+      </div>
+      <div class="game-chat-body" id="gameChatBody">
+        <div class="chat-messages" id="gameChatMessages"></div>
+        <div class="chat-input-row">
+          <input type="text" id="gameChatInput" placeholder="Enter로 전송..." maxlength="200" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <!-- Scoreboard Overlay -->
+    <div id="scoreboard">
+      <div class="scoreboard-panel">
+        <h2 id="scoreTitle">GAME OVER</h2>
+        <div id="scoreList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
