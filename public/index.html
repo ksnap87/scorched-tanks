@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=41">
+  <link rel="stylesheet" href="style.css?v=42">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -45,12 +45,17 @@
         <button class="btn-room" id="btnNewRoom" onclick="createNewRoom()">+ NEW ROOM</button>
       </div>
 
-      <div class="lobby-content lobby-3col">
-        <!-- 좌: 플레이어/팀모드/시작/단축키 -->
-        <div class="lobby-left">
+      <div class="lobby-content lobby-v2">
+        <!-- 메인: 플레이어 / 시작 / 키보드 / 탱크 6장 가로 1열 -->
+        <div class="lobby-main">
           <div class="name-input-group">
             <input type="text" id="nameInput" placeholder="Enter your name..." maxlength="12" autocomplete="off">
             <button class="btn" style="padding: 12px 20px; font-size: 0.8rem; background: #1E90FF; color: #fff; border-radius: 10px;" onclick="setName()">SET</button>
+            <label class="team-toggle-inline">
+              <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
+              <span>⚔️ 팀전</span>
+            </label>
+            <button class="btn btn-start" id="btnStart" onclick="startGame()" disabled>START BATTLE</button>
           </div>
 
           <div class="player-list">
@@ -58,35 +63,21 @@
             <div class="player-slots" id="playerSlots"></div>
           </div>
 
-          <div class="team-mode-toggle">
-            <label>
-              <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
-              <span>⚔️ 팀전 모드</span>
-            </label>
+          <div class="key-hints-bar">
+            <span><kbd>←</kbd><kbd>→</kbd> Angle</span>
+            <span><kbd>↑</kbd><kbd>↓</kbd> Power</span>
+            <span><kbd>SPACE</kbd> Fire</span>
+            <span><kbd>A</kbd><kbd>D</kbd> Move</span>
+            <span><kbd>X</kbd> Double</span>
+            <span><kbd>R</kbd> Repair</span>
+            <span><kbd>S</kbd> Siege</span>
+            <span><kbd>1</kbd>Normal <kbd>2</kbd>Bomb2 <kbd>3</kbd>Ult <kbd>4</kbd>Nuke</span>
+            <span><kbd>ENTER</kbd> Chat</span>
           </div>
 
-          <button class="btn btn-start" id="btnStart" onclick="startGame()" disabled>
-            START BATTLE
-          </button>
-
-          <div class="key-hints" style="margin-top: 1rem; line-height: 1.8;">
-            <kbd>←</kbd><kbd>→</kbd> Angle &nbsp;
-            <kbd>↑</kbd><kbd>↓</kbd> Power &nbsp;
-            <kbd>SPACE</kbd> Fire <br>
-            <kbd>A</kbd><kbd>D</kbd> Move &nbsp;
-            <kbd>X</kbd> Double &nbsp;
-            <kbd>R</kbd> Repair &nbsp;
-            <kbd>S</kbd> Siege <br>
-            <kbd>1</kbd>Normal <kbd>2</kbd>Bomb2 <kbd>3</kbd>Ult <kbd>4</kbd>Nuke &nbsp;
-            <kbd>ENTER</kbd> Chat
-          </div>
-        </div>
-
-        <!-- 중앙: 탱크 선택 (양옆 공간 활용) -->
-        <div class="lobby-center">
-          <div class="tank-select">
+          <div class="tank-select tank-select-row">
             <h3>SELECT TANK</h3>
-            <div class="tank-grid" id="tankGrid"></div>
+            <div class="tank-grid tank-grid-row" id="tankGrid"></div>
           </div>
         </div>
 
@@ -262,6 +253,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=41"></script>
+  <script src="game.js?v=42"></script>
 </body>
 </html>
