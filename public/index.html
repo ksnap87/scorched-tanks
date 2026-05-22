@@ -149,8 +149,19 @@
     <!-- Scoreboard Overlay -->
     <div id="scoreboard">
       <div class="scoreboard-panel">
-        <h2 id="scoreTitle">GAME OVER</h2>
+        <div class="gameover-banner">
+          <div class="gameover-trophy">🏆</div>
+          <h2 id="scoreTitle">GAME OVER</h2>
+          <div class="gameover-sub">FINAL RESULTS</div>
+        </div>
         <div id="scoreList"></div>
+        <div class="gameover-footer">
+          <div class="lobby-countdown">
+            <span class="lc-label">대기방으로 이동까지</span>
+            <span class="lc-num" id="lobbyCountdown">8</span>
+            <span class="lc-unit">초</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -190,6 +190,11 @@ socket.on('gameState', (data) => {
     lobby.style.display = 'flex';
     gameContainer.style.display = 'none';
     scoreboardEl.style.display = 'none';
+    if (gameoverCountdownTimer) {
+      clearInterval(gameoverCountdownTimer);
+      gameoverCountdownTimer = null;
+    }
+    gameoverEndsAt = null;
     updateLobby();
   } else if (state.phase === 'playing') {
     lobby.style.display = 'none';
@@ -231,6 +236,32 @@ socket.on('timerUpdate', (time) => {
   timerCircle.textContent = time;
   timerCircle.classList.toggle('urgent', time <= 5);
 });
+
+let gameoverEndsAt = null;
+let gameoverCountdownTimer = null;
+
+socket.on('gameoverInfo', (data) => {
+  if (!data || !data.endsAt) return;
+  gameoverEndsAt = data.endsAt;
+  startGameoverCountdown();
+});
+
+function startGameoverCountdown() {
+  if (gameoverCountdownTimer) clearInterval(gameoverCountdownTimer);
+  const el = document.getElementById('lobbyCountdown');
+  if (!el) return;
+  const tick = () => {
+    if (!gameoverEndsAt) return;
+    const remain = Math.max(0, Math.ceil((gameoverEndsAt - Date.now()) / 1000));
+    el.textContent = remain;
+    if (remain <= 0) {
+      clearInterval(gameoverCountdownTimer);
+      gameoverCountdownTimer = null;
+    }
+  };
+  tick();
+  gameoverCountdownTimer = setInterval(tick, 250);
+}
 
 socket.on('itemPickup', (data) => {
   if (!data) return;
@@ -757,7 +788,15 @@ document.addEventListener('keydown', (e) => {
 function showScoreboard() {
   if (!state) return;
 
-  scoreTitle.textContent = 'BATTLE RESULTS';
+  scoreTitle.textContent = 'GAME OVER';
+
+  // 카운트다운 안내 (gameoverInfo가 누락된 경우 안전망)
+  if (!gameoverEndsAt) {
+    gameoverEndsAt = Date.now() + 8000;
+    startGameoverCountdown();
+  } else if (!gameoverCountdownTimer) {
+    startGameoverCountdown();
+  }
 
   const entries = Object.keys(state.scores)
     .filter(id => state.players[id])

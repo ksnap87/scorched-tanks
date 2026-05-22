@@ -773,16 +773,80 @@ canvas {
   border-radius: 20px;
   padding: 2rem 3rem;
   text-align: center;
-  min-width: 400px;
+  min-width: 440px;
+  box-shadow: 0 20px 80px rgba(255, 71, 87, 0.25);
+}
+
+.gameover-banner {
+  margin-bottom: 1.4rem;
+}
+
+.gameover-trophy {
+  font-size: 3.4rem;
+  margin-bottom: 0.4rem;
+  animation: trophyBounce 1.6s ease infinite;
+  filter: drop-shadow(0 0 20px rgba(255, 165, 2, 0.6));
+}
+
+@keyframes trophyBounce {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(-8px) rotate(3deg); }
 }
 
 .scoreboard-panel h2 {
   font-family: 'Orbitron', monospace;
-  font-size: 1.8rem;
-  margin-bottom: 1.5rem;
-  background: linear-gradient(135deg, #FFA502, #FF4757);
+  font-size: 2.6rem;
+  font-weight: 900;
+  letter-spacing: 5px;
+  margin-bottom: 0.3rem;
+  background: linear-gradient(135deg, #FFA502, #FF4757, #FF6B81);
+  background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(255, 71, 87, 0.4);
+  animation: gameoverGradient 3s ease infinite;
+}
+
+@keyframes gameoverGradient {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+.gameover-sub {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.85rem;
+  color: #888;
+  letter-spacing: 6px;
+  margin-bottom: 1rem;
+}
+
+.gameover-footer {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lobby-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: 'Orbitron', monospace;
+  color: #aaa;
+  font-size: 0.85rem;
+  letter-spacing: 1.5px;
+}
+
+.lobby-countdown .lc-num {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #FFA502;
+  text-shadow: 0 0 12px rgba(255, 165, 2, 0.5);
+  min-width: 28px;
+  text-align: center;
+}
+
+.lobby-countdown .lc-unit {
+  color: #666;
 }
 
 .score-entry {
