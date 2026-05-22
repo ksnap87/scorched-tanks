@@ -1658,20 +1658,35 @@ setInterval(() => {
     room.radiationZones = room.radiationZones.filter(z => z.endsAt > now);
     let changed = before !== room.radiationZones.length;
     // 각 zone 안의 살아있는 탱크에게 DOT 데미지
+    const mwDot = room.mapWidth || CANVAS_WIDTH;
     room.radiationZones.forEach(z => {
-      Object.values(room.players).forEach(p => {
-        if (!p.alive) return;
-        // 자해 허용 — 본인 zone에도 데미지
-        const dx = p.x - z.x;
-        const dy = p.y - z.y;
-        if (Math.sqrt(dx * dx + dy * dy) < z.radius) {
-          p.hp = Math.max(0, p.hp - z.dps);
+      // 우라늄 — 클라 시각의 흘러내림 범위와 동일하게 데미지 적용 (양옆 baseSpread 까지)
+      if (z.dotKind === 'uranium') {
+        const elapsed = now - (z.startedAt || now);
+        const baseSpread = Math.min(z.radius * 8, z.radius * 2 + (elapsed / 1000) * z.radius * 1.5);
+        const leftTY = getTerrainY(room.terrain, Math.max(0, z.x - 60));
+        const rightTY = getTerrainY(room.terrain, Math.min(mwDot - 1, z.x + 60));
+        const centerTY = getTerrainY(room.terrain, z.x);
+        const leftFlow = leftTY > centerTY ? 1.6 : (leftTY < centerTY ? 0.4 : 1.0);
+        const rightFlow = rightTY > centerTY ? 1.6 : (rightTY < centerTY ? 0.4 : 1.0);
+        const minX = z.x - baseSpread * leftFlow;
+        const maxX = z.x + baseSpread * rightFlow;
+        Object.values(room.players).forEach(p => {
+          if (!p.alive) return;
+          if (p.x < minX || p.x > maxX) return;
+          // 탱크가 지면 근처에 있어야 (지표면 따라 흐름)
+          const groundY = getTerrainY(room.terrain, p.x);
+          if (Math.abs(p.y - groundY) > 40) return;
+          // 중심에서 멀수록 데미지 약하게 (흐름 끝은 얇음)
+          const distNorm = Math.abs(p.x - z.x) / Math.max(1, baseSpread * Math.max(leftFlow, rightFlow));
+          const intensity = Math.max(0.35, 1 - distNorm * 0.7);
+          const dmg = z.dps * intensity;
+          p.hp = Math.max(0, p.hp - dmg);
           changed = true;
-          // 시각 표시용 — 오염 데미지 받는 중
           p.radiationHitAt = now;
           const shooter = room.players[z.shooterId];
           if (shooter && shooter.id !== p.id) {
-            shooter.damageDealt = (shooter.damageDealt || 0) + z.dps;
+            shooter.damageDealt = (shooter.damageDealt || 0) + dmg;
           }
           if (p.hp <= 0) {
             p.alive = false;
@@ -1681,8 +1696,32 @@ setInterval(() => {
               room.scores[shooter.id] += 50;
             }
           }
-        }
-      });
+        });
+      } else {
+        // 화염 등 — 원형 범위
+        Object.values(room.players).forEach(p => {
+          if (!p.alive) return;
+          const dx = p.x - z.x;
+          const dy = p.y - z.y;
+          if (Math.sqrt(dx * dx + dy * dy) < z.radius) {
+            p.hp = Math.max(0, p.hp - z.dps);
+            changed = true;
+            p.radiationHitAt = now;
+            const shooter = room.players[z.shooterId];
+            if (shooter && shooter.id !== p.id) {
+              shooter.damageDealt = (shooter.damageDealt || 0) + z.dps;
+            }
+            if (p.hp <= 0) {
+              p.alive = false;
+              if (shooter && shooter.id !== p.id) {
+                shooter.kills = (shooter.kills || 0) + 1;
+                if (room.scores[shooter.id] == null) room.scores[shooter.id] = 0;
+                room.scores[shooter.id] += 50;
+              }
+            }
+          }
+        });
+      }
     });
     if (changed) broadcastState(room);
   });
