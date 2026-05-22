@@ -487,6 +487,13 @@ body {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 8px;
+  min-width: 0;
+}
+
+/* 3-column lobby 에서는 좌측 폭이 좁으므로 2열로 강제 */
+.lobby-3col .player-slots {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
 }
 
 .player-slot {
@@ -498,6 +505,24 @@ body {
   font-size: 0.75rem;
   color: #444;
   transition: all 0.3s;
+  min-width: 0;
+  overflow: hidden;
+}
+.lobby-3col .player-slot {
+  padding: 6px 4px;
+  font-size: 0.7rem;
+}
+.lobby-3col .player-slot .slot-name {
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lobby-3col .player-slot .slot-tank {
+  font-size: 0.58rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-slot.filled {
