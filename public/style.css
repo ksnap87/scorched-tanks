@@ -175,8 +175,7 @@ body {
 }
 .lobby-v2 .name-input-group input,
 .lobby-v3 .name-input-group input {
-  flex: 1 1 280px;
-  max-width: 420px;
+  flex: 1 1 auto;            /* 가용 공간 다 차지 — 빈공간 제거 */
   min-width: 200px;
   padding: 11px 16px;
   font-size: 1rem;
@@ -304,11 +303,11 @@ body {
 }
 .lobby-v2 .team-toggle-card .ttc-on-hint {
   margin-left: auto;
-  font-size: 1rem;
-  color: #ccc;
+  font-size: 1.05rem;
+  color: #ddd;
   font-weight: 700;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.07);
+  padding: 8px 18px;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 22px;
 }
 .lobby-v2 .team-toggle-card:has(input:checked) .ttc-on-hint {
@@ -320,9 +319,9 @@ body {
   content: '✅ 활성화됨 · ';
 }
 .lobby-v2 .team-toggle-card .ttc-desc {
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: #e8e8e8;
-  line-height: 1.55;
+  line-height: 1.6;
   font-weight: 500;
   padding-left: 60px;
 }
@@ -348,18 +347,25 @@ body {
 }
 .lobby-v2 .btn-start {
   flex: 0 0 auto;
-  margin: 0;
-  padding: 11px 26px;
-  font-size: 0.92rem;
+  margin: 0 0 0 auto;        /* 우측 끝으로 push */
+  padding: 11px 32px;
+  font-size: 0.95rem;
   font-weight: 800;
   letter-spacing: 1.5px;
 }
+/* === Typography grading (일관 폰트) ===
+   Section header (h3) : 1.15rem / 800 / Orbitron
+   Body                : 1.05rem
+   Card title          : 1rem / 700
+   Card meta           : 0.92rem
+   Smallest caption    : 0.82rem
+*/
 /* PLAYERS — 10명 가로 1줄 */
 .lobby-v2 .player-list h3 {
   margin: 0 0 12px;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   letter-spacing: 2.5px;
-  color: #e0e0e0;
+  color: #e8e8e8;
   font-weight: 800;
   font-family: 'Orbitron', monospace;
 }
@@ -369,53 +375,57 @@ body {
   gap: 8px;
 }
 .lobby-v2 .player-slot {
-  padding: 10px 6px;
-  font-size: 0.85rem;
+  padding: 12px 6px;
+  font-size: 0.92rem;
   min-width: 0;
   overflow: hidden;
 }
 .lobby-v2 .player-slot .slot-icon {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
 }
 .lobby-v2 .player-slot .slot-name {
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .lobby-v2 .player-slot .slot-tank {
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.8;
+  opacity: 0.85;
 }
-/* 키보드 단축키 한 줄 — chip 형태 */
+/* 키보드 단축키 한 줄 — 균등 분산 (빈공간 제거) */
 .lobby-v2 .key-hints-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 22px;
-  font-size: 1rem;
-  color: #ddd;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 18px;
+  font-size: 1.05rem;
+  color: #e0e0e0;
   line-height: 1.6;
+  font-weight: 500;
 }
 .lobby-v2 .key-hints-bar span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+  flex: 0 1 auto;
 }
 .lobby-v2 .key-hints-bar kbd {
   display: inline-block;
-  min-width: 26px;
+  min-width: 28px;
   text-align: center;
-  padding: 4px 9px;
-  font-size: 0.9rem;
+  padding: 5px 10px;
+  font-size: 0.95rem;
   background: rgba(255, 255, 255, 0.13);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
   margin-right: 4px;
   font-weight: 700;
@@ -425,9 +435,9 @@ body {
 /* 탱크 6장 가로 1줄 */
 .lobby-v2 .tank-select h3 {
   margin: 0 0 14px;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   letter-spacing: 2.5px;
-  color: #e0e0e0;
+  color: #e8e8e8;
   font-weight: 800;
   font-family: 'Orbitron', monospace;
 }
@@ -437,25 +447,25 @@ body {
   gap: 8px;
 }
 .lobby-v2 .tank-card {
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 .lobby-v2 .tc-hex-svg {
   width: 100%;
-  max-width: 140px;
+  max-width: 145px;
   height: auto;
   aspect-ratio: 1 / 1;
 }
 .lobby-v2 .tc-name {
-  font-size: 0.92rem;
+  font-size: 1rem;
   font-weight: 800;
 }
 .lobby-v2 .tc-country {
-  font-size: 0.78rem;
-  line-height: 1.3;
+  font-size: 0.85rem;
+  line-height: 1.35;
 }
 .lobby-v2 .tc-stats-mini {
-  font-size: 0.8rem;
-  line-height: 1.35;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 /* 반응형 */
 @media (max-width: 1380px) {
