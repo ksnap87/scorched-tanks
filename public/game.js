@@ -407,9 +407,24 @@ socket.on('init', (data) => {
 function renderTankGrid() {
   const grid = document.getElementById('tankGrid');
   if (!grid || !tankTypes) return;
+  // 같은 능력치 점수면 같은 바 길이가 되도록 — 각 stat의 게임 내 최대값을 100%로
+  let hpMax = 0, rangeMax = 0, moveMax = 0, speedMax = 0;
+  Object.values(tankTypes).forEach(t => {
+    if (t.hp > hpMax) hpMax = t.hp;
+    if (t.range > rangeMax) rangeMax = t.range;
+    if (t.move > moveMax) moveMax = t.move;
+    if (t.speed > speedMax) speedMax = t.speed;
+  });
+  // 0으로 나누기 방지
+  hpMax = hpMax || 1; rangeMax = rangeMax || 1; moveMax = moveMax || 1; speedMax = speedMax || 1;
+
   let html = '';
   Object.values(tankTypes).forEach(t => {
     const isSel = (selectedTank === t.id);
+    const hpPct = Math.round((t.hp / hpMax) * 100);
+    const rangePct = Math.round((t.range / rangeMax) * 100);
+    const movePct = Math.round((t.move / moveMax) * 100);
+    const speedPct = Math.round((t.speed / speedMax) * 100);
     html += `<div class="tank-card${isSel ? ' selected' : ''}" data-tank="${t.id}" onclick="selectTank('${t.id}')">
       <div class="tc-head">
         <span class="tc-flag">${t.flag}</span>
@@ -417,10 +432,10 @@ function renderTankGrid() {
       </div>
       <div class="tc-country">${t.country} · ${t.desc}</div>
       <div class="tc-stats">
-        <div class="ts-row"><span class="ts-label">HP</span><span class="ts-bar"><span class="ts-fill hp" style="width:${Math.min(100, t.hp / 1.4)}%"></span></span><span class="ts-val">${t.hp}</span></div>
-        <div class="ts-row"><span class="ts-label">사거리</span><span class="ts-bar"><span class="ts-fill range" style="width:${Math.min(100, t.range * 60)}%"></span></span><span class="ts-val">${t.range}×</span></div>
-        <div class="ts-row"><span class="ts-label">이동</span><span class="ts-bar"><span class="ts-fill move" style="width:${Math.min(100, t.move / 2.8)}%"></span></span><span class="ts-val">${t.move}</span></div>
-        <div class="ts-row"><span class="ts-label">속도</span><span class="ts-bar"><span class="ts-fill speed" style="width:${Math.min(100, t.speed * 60)}%"></span></span><span class="ts-val">${t.speed}×</span></div>
+        <div class="ts-row"><span class="ts-label">HP</span><span class="ts-bar"><span class="ts-fill hp" style="width:${hpPct}%"></span></span><span class="ts-val">${t.hp}</span></div>
+        <div class="ts-row"><span class="ts-label">사거리</span><span class="ts-bar"><span class="ts-fill range" style="width:${rangePct}%"></span></span><span class="ts-val">${t.range}×</span></div>
+        <div class="ts-row"><span class="ts-label">이동</span><span class="ts-bar"><span class="ts-fill move" style="width:${movePct}%"></span></span><span class="ts-val">${t.move}</span></div>
+        <div class="ts-row"><span class="ts-label">속도</span><span class="ts-bar"><span class="ts-fill speed" style="width:${speedPct}%"></span></span><span class="ts-val">${t.speed}×</span></div>
       </div>
     </div>`;
   });

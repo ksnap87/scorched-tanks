@@ -221,14 +221,17 @@ const TANK_NAMES = [
 // range: 포탄 초기속도 multiplier (사거리에 영향)
 // speed: 포탄 속도 추가 multiplier (비행 시간 단축, 운동에너지 증가)
 // move: 게임 전체 이동 가능 거리 (px)
-// ammo: NORMAL 포탄 차별 (radius=폭발반경, damage=직격 기준데미지)
+// ammo.kind = 'HE'|'HEAT'|'MULTI'|'AP'|'APFSDS'|'FastHE'
+//   - radius/damage: 직격 기준
+//   - multi: 메인 폭발 후 좌우 추가 sub-폭발 개수 (포트리스 멀티탄)
+//   - pierce: APFSDS류 직격 시 운동에너지 추가 배수
 const TANK_TYPES = {
   K2:    { id: 'K2',    name: 'K2 흑표',         country: '한국',   flag: '🇰🇷', hp: 100, range: 1.0, move: 200, speed: 1.0, desc: '균형 HE',           ammo: { kind: 'HE',     radius: 35, damage: 35 } },
-  M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸', hp: 140, range: 1.0, move: 120, speed: 1.0, desc: '중장갑 / 큰폭발',   ammo: { kind: 'HEAT',   radius: 45, damage: 32 } },
-  ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳', hp:  80, range: 0.8, move: 280, speed: 1.0, desc: '기동 / 경량포',     ammo: { kind: 'LightHE',radius: 28, damage: 30 } },
-  T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺', hp: 100, range: 0.8, move: 200, speed: 1.2, desc: '속사 / AP',          ammo: { kind: 'AP',     radius: 26, damage: 42 } },
-  LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪', hp: 100, range: 1.4, move: 120, speed: 1.0, desc: '장거리 / APFSDS',   ammo: { kind: 'APFSDS', radius: 22, damage: 48 } },
-  T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵', hp:  60, range: 1.0, move: 280, speed: 1.0, desc: '경량 / 약한 HE',     ammo: { kind: 'LightHE',radius: 32, damage: 26 } },
+  M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸', hp: 140, range: 1.0, move: 120, speed: 1.0, desc: '중장갑 / 큰폭발',   ammo: { kind: 'HEAT',   radius: 48, damage: 36 } },
+  ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳', hp:  80, range: 0.8, move: 280, speed: 1.0, desc: '멀티탄 (3발 분산)', ammo: { kind: 'MULTI',  radius: 26, damage: 24, multi: 3, multiSpread: 1.3, subDamageRatio: 0.55 } },
+  T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺', hp: 100, range: 0.8, move: 200, speed: 1.2, desc: '속사 AP',           ammo: { kind: 'AP',     radius: 26, damage: 42 } },
+  LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪', hp: 100, range: 1.4, move: 120, speed: 1.0, desc: '장거리 APFSDS',     ammo: { kind: 'APFSDS', radius: 22, damage: 44, pierce: 1.25 } },
+  T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵', hp:  70, range: 1.0, move: 240, speed: 1.1, desc: '경량 속사 / 정밀',  ammo: { kind: 'FastHE', radius: 30, damage: 34 } },
 };
 const DEFAULT_TANK = 'K2';
 function getTankDef(id) { return TANK_TYPES[id] || TANK_TYPES[DEFAULT_TANK]; }
@@ -558,7 +561,7 @@ function nextTurnInner(room) {
 // 운동에너지 KE = 0.5 × m × v², 데미지는 KE에 비례 (m=1 가정)
 const SPEED_REF = 15;          // 이 속도(px/frame)일 때 운동에너지 계수 1.0
 
-function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = null, shooter = null) {
+function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = null, shooter = null, isSubExplosion = false) {
   let radius = EXPLOSION_RADIUS;
   let maxDamage = PROJECTILE_DAMAGE;
 
@@ -574,6 +577,11 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     if (tankDef.ammo) {
       radius = tankDef.ammo.radius;
       maxDamage = tankDef.ammo.damage;
+      // 멀티탄의 sub-폭발은 약하게
+      if (isSubExplosion) {
+        radius = radius * 0.78;
+        maxDamage = maxDamage * (tankDef.ammo.subDamageRatio || 0.55);
+      }
     }
   }
 
@@ -584,6 +592,13 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   if (projectileSpeed != null && weaponType !== 'laser_guided') {
     const v2 = (projectileSpeed * projectileSpeed) / (SPEED_REF * SPEED_REF);
     speedFactor = Math.max(0.35, Math.min(1.5, v2));
+  }
+  // APFSDS pierce: 운동에너지 추가 배수 (LEO2)
+  if (weaponType === 'normal' && shooter) {
+    const tankAmmo = getTankDef(shooter.tankType).ammo;
+    if (tankAmmo && tankAmmo.pierce) {
+      speedFactor *= tankAmmo.pierce;
+    }
   }
 
   for (let i = 0; i < room.terrain.length; i++) {
@@ -653,6 +668,24 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   });
 
   room.explosions.push({ x, y, radius, time: Date.now() });
+
+  // 멀티탄 (포트리스 스타일): 메인 폭발 후 좌우 추가 sub-폭발
+  if (!isSubExplosion && weaponType === 'normal' && shooter) {
+    const tankAmmo = getTankDef(shooter.tankType).ammo;
+    if (tankAmmo && tankAmmo.multi && tankAmmo.multi > 1) {
+      const baseRadius = tankAmmo.radius;
+      const spread = baseRadius * (tankAmmo.multiSpread || 1.3);
+      const subCount = tankAmmo.multi - 1;
+      for (let i = 0; i < subCount; i++) {
+        const sign = i % 2 === 0 ? -1 : 1;
+        const step = Math.ceil((i + 1) / 2);
+        const sx = x + spread * step * sign;
+        // 지형 위치에 맞춰 sub-폭발 y 조정
+        const sy = Math.min(y, getTerrainY(room.terrain, sx) - 5);
+        applyExplosion(room, sx, sy, weaponType, projectileSpeed, shooter, true);
+      }
+    }
+  }
 }
 
 function simulateProjectile(startX, startY, angle, power, shooter) {
