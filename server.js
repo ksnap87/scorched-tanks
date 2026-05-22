@@ -1144,7 +1144,25 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     player.y = newY;
   });
 
-  room.explosions.push({ x, y, radius, time: Date.now() });
+  // 화염 종류 — 탱크별 NORMAL 포탄(weaponType === 'normal') 마다 다른 효과
+  // redbean/laser_guided/nuke 는 별도 처리
+  let flameKind = 'default';
+  if (weaponType === 'normal' && shooter) {
+    flameKind = `n_${shooter.tankType}`;        // n_K2, n_M1A2, n_T90, n_T10, n_ZTZ99, n_LEO2
+  } else if (weaponType === 'redbean' && shooter) {
+    const td = getTankDef(shooter.tankType);
+    flameKind = `b_${(td.bomb2 && td.bomb2.kind) || 'redbean'}`;   // b_uranium, b_multi, b_shotgun, b_guided, b_redbean
+  } else if (weaponType === 'laser_guided') {
+    flameKind = 'ult';
+  } else if (weaponType === 'nuke') {
+    flameKind = 'nuke';
+  }
+  room.explosions.push({
+    id: (room.nextExplosionId = (room.nextExplosionId || 0) + 1),
+    x, y, radius, time: Date.now(),
+    flameKind,
+    sub: !!isSubExplosion,
+  });
 
   // 팀전 — 한 팀 전원 사망 체크 (즉시)
   if (!isSubExplosion && room.teamMode) checkTeamGameEnd(room);
@@ -1691,7 +1709,7 @@ function startFire(room, player, weaponType, useDouble) {
           }
           io.to(room.id).emit('itemPickup', { playerId: shooter.id, playerName: shooter.name, type: box.type });
         }
-        room.explosions.push({ x: box.x, y: box.y, radius: 24, time: Date.now(), kind: 'box' });
+        room.explosions.push({ id: (room.nextExplosionId = (room.nextExplosionId || 0) + 1), x: box.x, y: box.y, radius: 24, time: Date.now(), kind: 'box', flameKind: 'pickup' });
         room.projectile = null;
         clearInterval(simInterval);
         broadcastState(room);
@@ -1788,7 +1806,7 @@ function checkPlayerGroundPickup(room, player) {
       room.itemBoxes.splice(i, 1);
       player.repairKits = (player.repairKits ?? 0) + 1;
       io.to(room.id).emit('itemPickup', { playerId: player.id, playerName: player.name, type: 'repair' });
-      room.explosions.push({ x: box.x, y: box.y, radius: 22, time: Date.now(), kind: 'box' });
+      room.explosions.push({ id: (room.nextExplosionId = (room.nextExplosionId || 0) + 1), x: box.x, y: box.y, radius: 22, time: Date.now(), kind: 'box', flameKind: 'pickup' });
       systemChat(room, `🔧 ${player.name} 수리키트 획득 (총 ${player.repairKits}개)`);
     }
   }
@@ -1885,6 +1903,11 @@ setInterval(() => {
 
 function broadcastState(room) {
   ensureHost(room);
+  // 오래된 explosions 정리 (메모리 누적 방지)
+  if (room.explosions && room.explosions.length > 0) {
+    const cutoff = Date.now() - 3000;
+    room.explosions = room.explosions.filter(e => e.time > cutoff);
+  }
   io.to(room.id).emit('gameState', {
     roomId: room.id,
     host: room.host,

@@ -629,11 +629,21 @@ socket.on('gameState', (data) => {
   }
 
   if (state.explosions) {
+    if (!window._processedExplosions) window._processedExplosions = new Set();
     state.explosions.forEach(exp => {
-      if (Date.now() - exp.time < 500) {
-        spawnExplosion(exp.x, exp.y, exp.radius);
+      // id 기반 중복 방지 — 같은 폭발을 broadcastState 마다 다시 spawn 하지 않음
+      if (exp.id != null) {
+        if (window._processedExplosions.has(exp.id)) return;
+        window._processedExplosions.add(exp.id);
+      }
+      if (Date.now() - exp.time < 1500) {
+        spawnExplosion(exp.x, exp.y, exp.radius, exp.flameKind || 'default');
       }
     });
+    // Set 크기 제한 (메모리 누적 방지)
+    if (window._processedExplosions.size > 500) {
+      window._processedExplosions = new Set(Array.from(window._processedExplosions).slice(-200));
+    }
   }
 });
 
@@ -1449,21 +1459,45 @@ function showToast(msg) {
 //  Particles
 // ==========================================
 
-function spawnExplosion(x, y, radius) {
-  const count = 40 + Math.floor(radius);
+// 화염 효과 — flameKind 별로 색/속도/모양 다르게 (각 탱크 NORMAL + bomb2 + ult 식별)
+const FLAME_PALETTES = {
+  // NORMAL 포탄 — 각 탱크별 다른 색감
+  n_K2:    { colors: ['#1E90FF', '#7BD3FF', '#fff', '#A8DBFF'], count: 45, speedMin: 1, speedMax: 6, gravity: 0.08, sizeMax: 4 },     // 한국 — 파랑/시안
+  n_M1A2:  { colors: ['#FFA502', '#FF6348', '#FFDD59', '#fff'], count: 60, speedMin: 1, speedMax: 7, gravity: 0.10, sizeMax: 5 },     // 미국 — 오렌지 큰 폭발
+  n_T90:   { colors: ['#7BED9F', '#2ED573', '#26de81', '#fff'], count: 35, speedMin: 0.5, speedMax: 4, gravity: 0.06, sizeMax: 3 },   // 러시아 AP — 좁고 빠름 (초록)
+  n_T10:   { colors: ['#FFD93D', '#FFA502', '#FF6B81', '#fff'], count: 40, speedMin: 1, speedMax: 5, gravity: 0.08, sizeMax: 3.5 },   // 일본 — 노랑/핑크
+  n_ZTZ99: { colors: ['#FF4757', '#FF6348', '#FFA502', '#fff'], count: 55, speedMin: 1, speedMax: 6, gravity: 0.09, sizeMax: 4.5 },   // 중국 — 빨간 광역
+  n_LEO2:  { colors: ['#A29BFE', '#7BD3FF', '#fff', '#dfe4ea'], count: 42, speedMin: 2, speedMax: 8, gravity: 0.07, sizeMax: 3.5 },   // 독일 APFSDS — 보라/빠름
+  // 폭탄2 — 무기 종류별
+  b_redbean: { colors: ['#FF4757', '#FF6B81', '#FFA502', '#fff'], count: 70, speedMin: 1, speedMax: 6, gravity: 0.10, sizeMax: 5 },   // 빨콩 — 큰 빨간 폭발
+  b_multi:   { colors: ['#FFA502', '#FFD93D', '#fff'], count: 30, speedMin: 1, speedMax: 5, gravity: 0.09, sizeMax: 3 },              // 멀티 — 작게 (4발이라)
+  b_uranium: { colors: ['#7BED9F', '#2ED573', '#FFD93D', '#26de81'], count: 50, speedMin: 0.5, speedMax: 4, gravity: 0.05, sizeMax: 4 },// 우라늄 — 초록 잔류
+  b_guided:  { colors: ['#FFD93D', '#FFA502', '#FF6B81', '#fff'], count: 50, speedMin: 1, speedMax: 6, gravity: 0.08, sizeMax: 4 },   // 정밀 유도
+  b_shotgun: { colors: ['#FF6348', '#FFA502', '#FFD93D', '#fff'], count: 65, speedMin: 1.5, speedMax: 7, gravity: 0.08, sizeMax: 4 }, // 화염탄 — 따뜻한 색
+  b_laser_beam: { colors: ['#7BD3FF', '#A29BFE', '#fff'], count: 25, speedMin: 0.5, speedMax: 3, gravity: 0.04, sizeMax: 3 },          // 레이저 — 작은 청색
+  // 필살기 / 핵
+  ult:    { colors: ['#FFD93D', '#FFA502', '#FF4757', '#fff', '#A29BFE'], count: 80, speedMin: 2, speedMax: 9, gravity: 0.10, sizeMax: 6 },
+  nuke:   { colors: ['#fff', '#FFD93D', '#FFA502', '#FF4757'], count: 120, speedMin: 3, speedMax: 12, gravity: 0.07, sizeMax: 7 },
+  pickup: { colors: ['#FFD93D', '#fff'], count: 15, speedMin: 1, speedMax: 4, gravity: 0.10, sizeMax: 2.5 },
+  default:{ colors: ['#FF4757', '#FFA502', '#ECCC68', '#FF6B81', '#fff'], count: 40, speedMin: 1, speedMax: 6, gravity: 0.08, sizeMax: 4 },
+};
+
+function spawnExplosion(x, y, radius, flameKind = 'default') {
+  const p = FLAME_PALETTES[flameKind] || FLAME_PALETTES.default;
+  const count = p.count + Math.floor(radius * 0.5);
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = Math.random() * 5 + 1;
-    const colors = ['#FF4757', '#FFA502', '#ECCC68', '#FF6B81', '#fff'];
+    const speed = p.speedMin + Math.random() * (p.speedMax - p.speedMin);
     particles.push({
       x, y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - Math.random() * 2,
       alpha: 1,
-      size: Math.random() * 4 + 1,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      life: 40 + Math.random() * 30,
-      maxLife: 40 + Math.random() * 30,
+      size: Math.random() * p.sizeMax + 1,
+      color: p.colors[Math.floor(Math.random() * p.colors.length)],
+      life: 35 + Math.random() * 30,
+      maxLife: 50,
+      grav: p.gravity,
     });
   }
 }
@@ -1472,10 +1506,10 @@ function updateParticles() {
   particles = particles.filter(p => {
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.08;
+    p.vy += (p.grav != null) ? p.grav : 0.08;
     p.vx *= 0.98;
     p.life--;
-    p.alpha = p.life / p.maxLife;
+    p.alpha = p.life / (p.maxLife || 50);
     return p.life > 0;
   });
 
