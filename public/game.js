@@ -567,9 +567,18 @@ socket.on('itemPickup', (data) => {
       currentWeapon = 'laser_guided';
       doubleShotMode = false;
       spawnPickupBurst();
+    } else if (data.type === 'repair') {
+      showToast('🔧 수리킷 획득!');
+      spawnPickupBurst();
+    } else if (data.type === 'nuke') {
+      showToast('☢️ 핵폭탄 획득!');
+      currentWeapon = 'nuke';
+      doubleShotMode = false;
+      spawnPickupBurst();
     }
   } else {
-    showToast(`📦 ${data.playerName || '누군가'} 필살기 획득`);
+    const labelMap = { laser: '필살기', repair: '수리킷', nuke: '☢️ 핵폭탄' };
+    showToast(`📦 ${data.playerName || '누군가'} ${labelMap[data.type] || '아이템'} 획득`);
   }
 });
 
@@ -843,6 +852,21 @@ function updateControls() {
       const ult = tankTypes[me.tankType].ultimate;
       ultLabel.textContent = ult ? ult.name.toUpperCase() : 'ULT';
     }
+    // NUKE 카운트 + 버튼 상태
+    const nukeCount = document.getElementById('nukeCount');
+    const nukeBtn = document.querySelector('.btn-weapon.w-nuke');
+    const nukes = me.nukeShots ?? 0;
+    if (nukeCount) nukeCount.textContent = nukes;
+    if (nukeBtn) {
+      nukeBtn.disabled = !isMyTurn || !!projectile || nukes <= 0;
+      nukeBtn.classList.toggle('has-stock', nukes > 0);
+    }
+    if (currentWeapon === 'nuke' && nukes <= 0) currentWeapon = 'normal';
+    weaponButtons.forEach(btn => {
+      if (btn.dataset.weapon === 'nuke') {
+        btn.classList.toggle('active', currentWeapon === 'nuke');
+      }
+    });
 
     // BOMB2 (REDBEAN 자리) 라벨 — 탱크별 동적
     const bomb2Label = document.getElementById('bomb2Label');
@@ -938,12 +962,16 @@ function selectWeapon(w) {
   if (!me) return;
   if (state.currentTurn !== myId) return;
   if (w === 'laser_guided' && (me.laserShots ?? 0) <= 0) {
-    showToast('⚠️ LASER STRIKE 보유 없음');
+    showToast('⚠️ 필살기 보유 없음');
     return;
   }
-  if (w === 'laser_guided' && doubleShotMode) {
+  if (w === 'nuke' && (me.nukeShots ?? 0) <= 0) {
+    showToast('⚠️ 핵폭탄 보유 없음');
+    return;
+  }
+  if ((w === 'laser_guided' || w === 'nuke') && doubleShotMode) {
     doubleShotMode = false;
-    showToast('🚀 LASER 선택 — 더블샷 자동 OFF');
+    showToast('⚡ 더블샷 자동 OFF (특수무기)');
   }
   currentWeapon = w;
   updateControls();
@@ -2560,9 +2588,16 @@ function drawProjectile() {
     ctx.lineWidth = 1;
     ctx.strokeRect(-projRadius * 2, -projRadius * 0.4, projRadius * 4, projRadius * 0.8);
   } else if (shape === 'multi4') {
-    // 미국 멀티탄 — 미사일 4개가 X축 분산 (서버 sub-explosion 위치와 동일: -56, -28, 0, +28)
+    // 미국 멀티탄 — 발사 직후엔 모여있다가 비행 거리에 따라 점진 분산 (4개 미사일)
     const ang = Math.atan2(projectile.vy || 0, projectile.vx || 1);
-    const spread = 28; // 서버 multiSpreadPx와 동일
+    // 발사자에서 떨어진 거리 (분산 정도)
+    const shooter2 = state && state.players ? state.players[projectile.shooterId] : null;
+    const distFromShooter = shooter2
+      ? Math.sqrt((projectile.x - shooter2.x) ** 2 + (projectile.y - shooter2.y) ** 2)
+      : 50;
+    // 발사 직후 ~50px까지는 모여있고, 그 후 28px까지 분산
+    const distFactor = Math.max(0, Math.min(1, (distFromShooter - 30) / 100));
+    const spread = 28 * distFactor;
     const offsets = [-spread * 2, -spread, 0, spread];
     offsets.forEach(off => {
       const gx = projectile.x + off;

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -147,6 +147,7 @@
         <button class="btn-weapon active" data-weapon="normal" onclick="selectWeapon('normal')">NORMAL</button>
         <button class="btn-weapon w-redbean" data-weapon="redbean" onclick="selectWeapon('redbean')"><span id="bomb2Label">RED BEAN</span></button>
         <button class="btn-weapon w-laser" data-weapon="laser_guided" onclick="selectWeapon('laser_guided')" disabled>🚀 <span id="ultLabel">ULT</span> × <span id="laserCountInBtn">0</span></button>
+        <button class="btn-weapon w-nuke" data-weapon="nuke" onclick="selectWeapon('nuke')" disabled>☢️ NUKE × <span id="nukeCount">0</span></button>
       </div>
       <button class="btn-doubleshot" id="btnDoubleShot" onclick="toggleDoubleShot()">
         ⚡ DOUBLE × <span id="doubleShotCount">2</span>
@@ -235,6 +236,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=14"></script>
+  <script src="game.js?v=15"></script>
 </body>
 </html>

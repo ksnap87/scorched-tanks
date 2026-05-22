@@ -301,6 +301,55 @@ function pickWeatherKind(continent) {
   return WEATHER_KINDS[Math.floor(Math.random() * WEATHER_KINDS.length)];
 }
 
+const WEATHER_NAMES = {
+  rain: '🌧 폭우',
+  snow: '❄️ 폭설',
+  typhoon: '🌪 태풍',
+  sandstorm: '🟡 모래바람',
+};
+
+function applyWeatherImmediate(room) {
+  const w = room.weather;
+  if (!w) return;
+  switch (w.kind) {
+    case 'typhoon':
+      // 모든 탱크 랜덤 ±20px (요청 명세)
+      Object.values(room.players).forEach(p => {
+        if (!p.alive) return;
+        const dx = (Math.random() - 0.5) * 40;
+        let nx = p.x + dx;
+        if (nx < 0) nx += CANVAS_WIDTH;
+        else if (nx >= CANVAS_WIDTH) nx -= CANVAS_WIDTH;
+        p.x = nx;
+        p.y = getTerrainY(room.terrain, p.x) - TANK_HEIGHT / 2;
+      });
+      break;
+    case 'snow':
+      // 모든 탱크 -5 HP (러시아 T-90 면역)
+      Object.values(room.players).forEach(p => {
+        if (!p.alive) return;
+        if (p.tankType === 'T90') return;
+        p.hp = Math.max(0, p.hp - 5);
+        if (p.hp <= 0) p.alive = false;
+      });
+      break;
+    case 'rain':   /* 이동 차단 / 늪지대는 move 핸들러에서 처리 */ break;
+    case 'sandstorm': /* 시야 효과는 클라이언트 */ break;
+  }
+}
+
+function maybeTriggerWeather(room) {
+  if (room.phase !== 'playing') return;
+  if (room.weather) return;
+  if (room.weatherUsedThisGame) return;
+  if ((room.turnsTotal || 0) < 5) return;
+  const kind = pickWeatherKind(room.continent);
+  room.weather = { kind, startedAt: Date.now(), turnsLeft: 2 };
+  room.weatherUsedThisGame = true;
+  applyWeatherImmediate(room);
+  systemChat(room, `${WEATHER_NAMES[kind] || kind} 발동!`);
+}
+
 // === Rooms (multi-room support) ===
 const rooms = {};
 const nextTurnFlags = {};
@@ -371,14 +420,29 @@ function destroyRoom(roomId) {
   delete nextTurnFlags[roomId];
 }
 
-function generateTerrain() {
+function generateTerrain(continent = 'KR') {
   const terrain = [];
   const points = [];
   const numPoints = 8;
 
+  // 대륙별 지형 특성
+  let yBase = 0.35, yRange = 0.30, centerHigh = false;
+  switch (continent) {
+    case 'RU': yBase = 0.50; yRange = 0.18; break;
+    case 'CN': yBase = 0.40; yRange = 0.40; break;
+    case 'KR': yBase = 0.45; yRange = 0.28; break;
+    case 'JP': yBase = 0.55; yRange = 0.35; centerHigh = true; break;
+    case 'US': yBase = 0.40; yRange = 0.32; break;
+    case 'DE': yBase = 0.52; yRange = 0.22; break;
+  }
+
   for (let i = 0; i <= numPoints; i++) {
     const x = (i / numPoints) * CANVAS_WIDTH;
-    const y = CANVAS_HEIGHT * 0.35 + Math.random() * CANVAS_HEIGHT * 0.3;
+    let y = CANVAS_HEIGHT * yBase + Math.random() * CANVAS_HEIGHT * yRange;
+    if (centerHigh) {
+      const centerDist = Math.abs(i - numPoints / 2) / (numPoints / 2);
+      y -= (1 - centerDist) * CANVAS_HEIGHT * 0.22;
+    }
     points.push({ x, y });
   }
 
@@ -489,7 +553,10 @@ function resetToLobby(room) {
 }
 
 function startNewRound(room) {
-  room.terrain = generateTerrain();
+  room.continent = pickContinent(room);
+  room.weather = null;
+  room.weatherUsedThisGame = false;
+  room.terrain = generateTerrain(room.continent);
   room.projectile = null;
   room.explosions = [];
   room.wind = (Math.random() - 0.5) * WIND_CHANGE_RANGE * 2;
@@ -633,6 +700,20 @@ function nextTurnInner(room) {
   }
 
   room.turnsTotal = (room.turnsTotal || 0) + 1;
+
+  // 자연재해 — 매 턴마다 지속시간 감소, 0이면 종료
+  if (room.weather) {
+    room.weather.turnsLeft = (room.weather.turnsLeft || 0) - 1;
+    if (room.weather.turnsLeft <= 0) {
+      systemChat(room, `${WEATHER_NAMES[room.weather.kind] || ''} 종료`);
+      room.weather = null;
+    } else {
+      // 매 턴 polish (snow는 추가 데미지, typhoon은 한 번만)
+      if (room.weather.kind === 'snow') applyWeatherImmediate(room);
+    }
+  }
+  // 트리거 체크
+  maybeTriggerWeather(room);
 
   resetTurnTimer(room);
   broadcastState(room);
@@ -853,15 +934,22 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   }
 }
 
+// 탱크별 포신 길이 (drawTanks의 barrel과 일치)
+const BARREL_LEN_BY_TANK = { K2: 26, M1A2: 24, T90: 22, LEO2: 28, T10: 20, ZTZ99: 22 };
+
 function simulateProjectile(startX, startY, angle, power, shooter) {
   const tankDef = shooter ? getTankDef(shooter.tankType) : getTankDef(DEFAULT_TANK);
-  // range × speed = 포탄 초기속도 multiplier (사거리/속도 둘 다 영향)
   const factor = (tankDef.range || 1.0) * (tankDef.speed || 1.0);
   const radians = angle * Math.PI / 180;
+  // 포신 끝(머즐)에서 발사 — 탱크 포탑 중심 (startY - 4) 기준
+  const turretY = startY - 4;
+  const barrelLen = BARREL_LEN_BY_TANK[shooter ? shooter.tankType : null] || 22;
+  const muzzleX = startX + Math.cos(radians) * barrelLen;
+  const muzzleY = turretY - Math.sin(radians) * barrelLen;
   const vx = Math.cos(radians) * power * 0.18 * factor;
   const vy = -Math.sin(radians) * power * 0.18 * factor;
 
-  return { x: startX, y: startY - 20, vx, vy };
+  return { x: muzzleX, y: muzzleY, vx, vy };
 }
 
 function startFire(room, player, weaponType, useDouble) {
@@ -871,7 +959,7 @@ function startFire(room, player, weaponType, useDouble) {
   if (room.projectile) return false;
   if (!player.alive) return false;
 
-  if (weaponType === 'laser_guided') useDouble = false;
+  if (weaponType === 'laser_guided' || weaponType === 'nuke') useDouble = false;
 
   const wasAlreadyPending = player.doubleShotPending;
   const isFirstOfDouble = useDouble && !wasAlreadyPending;
@@ -897,6 +985,10 @@ function startFire(room, player, weaponType, useDouble) {
     } else {
       player.laserShots--;
     }
+  }
+  if (actualWeapon === 'nuke') {
+    if ((player.nukeShots ?? 0) <= 0) return false;
+    player.nukeShots--;
   }
 
   // 멀티탄(미국 bomb2): 메인 발사 후 추가 발사 큐
@@ -1223,6 +1315,9 @@ function broadcastState(room) {
     itemBoxes: room.itemBoxes,
     airstrike: room.airstrike,
     radiationZones: room.radiationZones || [],
+    continent: room.continent || 'KR',
+    weather: room.weather,
+    turnsTotal: room.turnsTotal || 0,
   });
 }
 
@@ -1400,8 +1495,17 @@ io.on('connection', (socket) => {
     if (!player || !player.alive) return;
     if (player.moveBudget <= 0) return;
 
+    // 자연재해 — 폭우/폭설 시 이동 불가
+    if (r.weather && (r.weather.kind === 'rain' || r.weather.kind === 'snow')) {
+      return;
+    }
     const tankDef = getTankDef(player.tankType);
-    const moveSpeedMul = tankDef.moveSpeed || 1.0;
+    let moveSpeedMul = tankDef.moveSpeed || 1.0;
+    // 늪지대 (rain 시 저지대) — 이동 50% 감소  (rain은 이미 위에서 차단됐지만 안전망)
+    if (r.weather && r.weather.kind === 'rain') {
+      const ty = getTerrainY(r.terrain, player.x);
+      if (ty > CANVAS_HEIGHT * 0.55) moveSpeedMul *= 0.5;
+    }
     const dir = direction < 0 ? -1 : 1;
     const desiredStep = Math.min(5 * moveSpeedMul, player.moveBudget);
     let newX = player.x + dir * desiredStep;
