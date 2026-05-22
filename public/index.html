@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=50">
+  <link rel="stylesheet" href="style.css?v=51">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -49,8 +49,8 @@
         <!-- 상단 좌: 헤더(이름/팀전/시작) + PLAYERS + 키보드 -->
         <div class="lobby-top-left">
           <div class="name-input-group">
-            <input type="text" id="nameInput" placeholder="Enter your name..." maxlength="12" autocomplete="off">
-            <button class="btn" style="padding: 12px 20px; font-size: 0.8rem; background: #1E90FF; color: #fff; border-radius: 10px;" onclick="setName()">SET</button>
+            <input type="text" id="nameInput" placeholder="닉네임 입력..." maxlength="12" autocomplete="off">
+            <button class="btn btn-set-name" onclick="setName()">SET</button>
             <button class="btn btn-start" id="btnStart" onclick="startGame()" disabled>START BATTLE</button>
           </div>
 
@@ -261,6 +261,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=50"></script>
+  <script src="game.js?v=51"></script>
 </body>
 </html>

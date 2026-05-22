@@ -2054,8 +2054,7 @@ io.on('connection', (socket) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
     if (r.players[socket.id]) {
-      // 로그인 사용자는 이름 변경 불가 (계정 username 사용)
-      if (r.players[socket.id].userId) return;
+      // 로그인 사용자도 표시 이름 변경 가능 (계정 username 은 별도 보존)
       const cleaned = String(name || '').substring(0, 12).trim();
       if (!cleaned) return;
       const oldName = r.players[socket.id].name;

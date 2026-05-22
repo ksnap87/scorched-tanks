@@ -865,33 +865,25 @@ function updateLobby() {
 }
 
 function setName() {
-  // 로그인 사용자는 username 고정 (이름 변경 불가)
-  if (authToken && authUser) {
-    showToast('⚠️ 로그인한 사용자는 이름 변경 불가 (계정 ID 사용)');
-    return;
-  }
-  const name = nameInput.value.trim();
+  const name = (nameInput && nameInput.value || '').trim();
   if (name) {
     socket.emit('setName', name);
     nameInput.value = '';
-    showToast(`NAME SET: ${name.toUpperCase()}`);
+    showToast(`닉네임 변경: ${name}`);
   } else {
-    showToast('⚠️ 이름을 입력하세요');
+    showToast('⚠️ 닉네임을 입력하세요');
   }
 }
 
-// 로그인 상태에 따라 이름 input 비활성화 (UI hint)
-// 주의: const nameInput 보다 먼저 호출될 수 있어서 (updateAuthBar → 이 함수) DOM 에서 직접 lookup
+// 로그인 상태에 따라 placeholder 만 안내 (input 비활성화는 X — 로그인 사용자도 변경 가능)
 function syncNameInputLockState() {
   const el = document.getElementById('nameInput');
   if (!el) return;
+  el.disabled = false;
   if (authToken && authUser) {
-    el.disabled = true;
-    el.placeholder = '🔒 로그인 ID (이름 변경 불가)';
-    el.value = '';
+    el.placeholder = `닉네임 변경 (계정 ID: ${authUser.username})`;
   } else {
-    el.disabled = false;
-    el.placeholder = 'Enter your name...';
+    el.placeholder = '닉네임 입력...';
   }
 }
 

@@ -117,19 +117,57 @@ body {
   border-radius: 12px;
   padding: 12px 16px;
 }
-/* 상단: 이름 / 팀전 토글 / START 를 한 줄에 */
+/* 상단: 이름 / START 를 한 줄에 */
 .lobby-v2 .name-input-group,
 .lobby-v3 .name-input-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .lobby-v2 .name-input-group input,
 .lobby-v3 .name-input-group input {
-  flex: 0 1 160px;     /* 이름 input 짧게 — 한 줄에 팀전 토글까지 들어가게 */
-  max-width: 200px;
-  min-width: 130px;
+  flex: 1 1 280px;
+  max-width: 420px;
+  min-width: 200px;
+  padding: 14px 18px;
+  font-size: 1rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #fff;
+  font-family: 'Rajdhani', 'Pretendard', sans-serif;
+}
+.lobby-v2 .name-input-group input:focus,
+.lobby-v3 .name-input-group input:focus {
+  outline: none;
+  border-color: #1E90FF;
+  box-shadow: 0 0 12px rgba(30, 144, 255, 0.35);
+  background: rgba(255, 255, 255, 0.09);
+}
+.lobby-v2 .name-input-group input::placeholder,
+.lobby-v3 .name-input-group input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+.lobby-v2 .btn-set-name,
+.lobby-v3 .btn-set-name {
+  padding: 14px 28px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, #1E90FF, #2080e8);
+  color: #fff;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Orbitron', monospace;
+}
+.lobby-v2 .btn-set-name:hover,
+.lobby-v3 .btn-set-name:hover {
+  background: linear-gradient(135deg, #2da0ff, #1E90FF);
+  box-shadow: 0 0 14px rgba(30, 144, 255, 0.5);
 }
 .lobby-v2 .team-toggle-inline {
   display: inline-flex;
@@ -154,38 +192,39 @@ body {
 .lobby-v2 .team-toggle-card {
   display: block;
   width: 100%;
-  padding: 16px 20px;
+  padding: 28px 32px;
   margin: 0;
   background: rgba(255, 217, 61, 0.05);
-  border: 2px solid rgba(255, 217, 61, 0.18);
-  border-radius: 14px;
+  border: 3px solid rgba(255, 217, 61, 0.22);
+  border-radius: 18px;
   cursor: pointer;
   user-select: none;
   transition: all 0.2s;
 }
 .lobby-v2 .team-toggle-card:hover {
-  background: rgba(255, 217, 61, 0.09);
-  border-color: rgba(255, 217, 61, 0.35);
+  background: rgba(255, 217, 61, 0.10);
+  border-color: rgba(255, 217, 61, 0.45);
+  transform: translateY(-1px);
 }
 .lobby-v2 .team-toggle-card:has(input:checked) {
-  background: rgba(255, 217, 61, 0.13);
+  background: rgba(255, 217, 61, 0.16);
   border-color: #FFD93D;
-  box-shadow: 0 0 18px rgba(255, 217, 61, 0.25);
+  box-shadow: 0 0 28px rgba(255, 217, 61, 0.35);
 }
 .lobby-v2 .team-toggle-card .ttc-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: 20px;
+  margin-bottom: 14px;
 }
 .lobby-v2 .team-toggle-card input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
-  width: 26px;
-  height: 26px;
-  border: 2px solid rgba(255, 217, 61, 0.5);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.3);
+  width: 44px;
+  height: 44px;
+  border: 3px solid rgba(255, 217, 61, 0.55);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
   cursor: pointer;
   position: relative;
   margin: 0;
@@ -204,35 +243,40 @@ body {
   align-items: center;
   justify-content: center;
   color: #1a1a1a;
-  font-size: 1.1rem;
+  font-size: 1.8rem;
   font-weight: 900;
 }
 .lobby-v2 .team-toggle-card .ttc-title {
-  font-size: 1.15rem;
+  font-size: 1.7rem;
   font-weight: 800;
   color: #FFD93D;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
   font-family: 'Orbitron', monospace;
+  line-height: 1;
 }
 .lobby-v2 .team-toggle-card .ttc-on-hint {
   margin-left: auto;
-  font-size: 0.75rem;
-  color: #888;
-  font-weight: 500;
+  font-size: 0.95rem;
+  color: #aaa;
+  font-weight: 600;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
 }
 .lobby-v2 .team-toggle-card:has(input:checked) .ttc-on-hint {
-  color: #FFD93D;
-  font-weight: 700;
+  color: #1a1a1a;
+  background: #FFD93D;
+  font-weight: 800;
 }
 .lobby-v2 .team-toggle-card:has(input:checked) .ttc-on-hint::before {
   content: '✅ 활성화됨 · ';
 }
 .lobby-v2 .team-toggle-card .ttc-desc {
-  font-size: 0.95rem;
-  color: #ccc;
-  line-height: 1.6;
+  font-size: 1.05rem;
+  color: #ddd;
+  line-height: 1.7;
   font-weight: 500;
-  padding-left: 38px;     /* 체크박스 너비 + gap 만큼 들여쓰기 */
+  padding-left: 64px;     /* 체크박스 너비 + gap */
 }
 .lobby-v2 .team-toggle-card .ttc-desc b {
   color: #FFD93D;
