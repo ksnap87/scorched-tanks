@@ -1208,8 +1208,10 @@ function render() {
   drawStars();
   drawClouds();
   drawTerrain();
+  drawRadiationZones();
   drawItemBoxes();
   drawTanks();
+  drawGuidedTrajectory();
   drawProjectile();
   drawAirstrike();
   drawParticles();
@@ -1908,6 +1910,115 @@ function drawTerrain() {
   ctx.strokeStyle = 'rgba(123, 237, 159, 0.15)';
   ctx.lineWidth = 1;
   ctx.stroke();
+}
+
+// === 우라늄 오염 지역 ===
+function drawRadiationZones() {
+  if (!state || !state.radiationZones || state.radiationZones.length === 0) return;
+  const now = Date.now();
+  state.radiationZones.forEach(z => {
+    if (z.endsAt < now) return;
+    const totalLife = (z.endsAt - z.startedAt) || 8000;
+    const lifeT = Math.max(0, (z.endsAt - now) / totalLife); // 1 → 0
+    const pulse = 0.5 + Math.sin(now / 220) * 0.4;
+    ctx.save();
+    // 외곽 글로우
+    ctx.fillStyle = `rgba(123, 237, 159, ${0.18 * lifeT})`;
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.radius * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    // 메인 오염 (펄스)
+    ctx.fillStyle = `rgba(46, 213, 115, ${0.28 * lifeT * pulse})`;
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+    ctx.fill();
+    // 점선 경계
+    ctx.strokeStyle = `rgba(46, 213, 115, ${0.85 * lifeT})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 중심 방사능 ☢ 표식 (rotating)
+    ctx.translate(z.x, z.y);
+    ctx.rotate(now / 800);
+    ctx.fillStyle = `rgba(255, 217, 61, ${0.7 * lifeT})`;
+    for (let i = 0; i < 3; i++) {
+      ctx.rotate(Math.PI * 2 / 3);
+      ctx.beginPath();
+      ctx.moveTo(0, -4);
+      ctx.arc(0, 0, 8, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+// === 정밀 유도탄 (T-10 bomb2) 가이드 점선 — 자기 턴 + guided 무기 선택 시 ===
+function drawGuidedTrajectory() {
+  if (!state || state.currentTurn !== myId) return;
+  if (currentWeapon !== 'redbean') return;
+  if (projectile) return;
+  const me = state.players[myId];
+  if (!me || !tankTypes || !tankTypes[me.tankType]) return;
+  const tankDef = tankTypes[me.tankType];
+  const bomb2 = tankDef.bomb2;
+  if (!bomb2 || bomb2.kind !== 'guided') return;
+
+  // 서버 simulateProjectile + projectile sim과 동일한 물리로 예측
+  const angle = me.angle * Math.PI / 180;
+  const factor = (tankDef.range || 1.0) * (tankDef.speed || 1.0);
+  let vx = Math.cos(angle) * me.power * 0.18 * factor;
+  let vy = -Math.sin(angle) * me.power * 0.18 * factor;
+  let x = me.x;
+  let y = me.y - 20;
+  const wind = state.wind || 0;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(124, 196, 255, 0.75)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 5]);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+
+  let impactPoint = null;
+  for (let i = 0; i < 500; i++) {
+    const speed = Math.sqrt(vx * vx + vy * vy);
+    const dragMag = 0.0012 * speed;
+    vx += wind * 0.32 + (-vx * dragMag);
+    vy += 0.15 + (-vy * dragMag);
+    x += vx;
+    y += vy;
+    if (x < -50 || x > canvas.width + 50 || y > canvas.height + 50) break;
+    if (state.terrain) {
+      const idx = Math.floor(x / 2);
+      if (idx >= 0 && idx < state.terrain.length && y >= state.terrain[idx]) {
+        impactPoint = { x, y: state.terrain[idx] };
+        ctx.lineTo(impactPoint.x, impactPoint.y);
+        break;
+      }
+    }
+    if (i % 2 === 0) ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 예상 명중 지점 표식
+  if (impactPoint) {
+    const pulse = 0.6 + Math.sin(Date.now() / 200) * 0.3;
+    ctx.strokeStyle = `rgba(255, 217, 61, ${pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(impactPoint.x, impactPoint.y, 10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(impactPoint.x - 13, impactPoint.y); ctx.lineTo(impactPoint.x + 13, impactPoint.y);
+    ctx.moveTo(impactPoint.x, impactPoint.y - 13); ctx.lineTo(impactPoint.x, impactPoint.y + 13);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // === 탱크별 실루엣 ===

@@ -320,6 +320,8 @@ function createRoom(id) {
     nextItemBoxId: 1,
     chatHistory: [],
     lobbyReturnTimer: null,
+    radiationZones: [],   // 우라늄탄 오염 지역 [{x, y, radius, dps, endsAt, shooterId}]
+    nextZoneId: 1,
   };
 }
 
@@ -740,6 +742,23 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 
   room.explosions.push({ x, y, radius, time: Date.now() });
 
+  // 우라늄탄 — 폭발 후 오염 지역 생성 (러시아 T-90 bomb2)
+  if (!isSubExplosion && weaponType === 'redbean' && shooter) {
+    const tankDef = getTankDef(shooter.tankType);
+    if (tankDef.bomb2 && tankDef.bomb2.kind === 'uranium') {
+      if (!room.radiationZones) room.radiationZones = [];
+      room.radiationZones.push({
+        id: room.nextZoneId++,
+        x, y,
+        radius: tankDef.bomb2.dotRadius || 10,
+        dps: tankDef.bomb2.dotDps || 1,
+        startedAt: Date.now(),
+        endsAt: Date.now() + (tankDef.bomb2.dotDuration || 8) * 1000,
+        shooterId: shooter.id,
+      });
+    }
+  }
+
   // 멀티탄 (포트리스 스타일): NORMAL ammo + bomb2 둘 다 multi 옵션 지원
   if (!isSubExplosion && shooter) {
     const tankDef = getTankDef(shooter.tankType);
@@ -813,6 +832,13 @@ function startFire(room, player, weaponType, useDouble) {
   const proj = simulateProjectile(player.x, player.y, player.angle, player.power, player);
   proj.type = actualWeapon;
   proj.shooterId = player.id;
+  // ZTZ-99 샷건탄 — airBurst 거리 설정
+  if (actualWeapon === 'redbean') {
+    const tankDef = getTankDef(player.tankType);
+    if (tankDef.bomb2 && tankDef.bomb2.kind === 'shotgun' && tankDef.bomb2.airBurst) {
+      proj.airBurstDist = tankDef.bomb2.airBurst;
+    }
+  }
   room.projectile = proj;
 
   if (room.turnTimer) {
@@ -937,11 +963,40 @@ function startFire(room, player, weaponType, useDouble) {
     }
 
     const terrainY = getTerrainY(room.terrain, px);
+
+    // ZTZ-99 샷건탄 — 지형 도달 전에 공중 폭발 (airBurst px 위에서)
+    if (p.type === 'redbean' && p.airBurstDist) {
+      if (terrainY - py < p.airBurstDist) {
+        room.projectile = null;
+        clearInterval(simInterval);
+        detonate(px, py);
+        return;
+      }
+    }
+
     if (py >= terrainY) {
       room.projectile = null;
       clearInterval(simInterval);
       detonate(px, terrainY);
       return;
+    }
+
+    // ZTZ-99 샷건탄: 탱크 접근 시 공중 폭발 (탱크 위 airBurst px에서 터짐)
+    if (p.type === 'redbean' && p.airBurstDist) {
+      for (const id of Object.keys(room.players)) {
+        const target = room.players[id];
+        if (!target.alive) continue;
+        if (target.id === p.shooterId) continue;
+        const dx = target.x - px;
+        const dy = target.y - py;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < p.airBurstDist) {
+          room.projectile = null;
+          clearInterval(simInterval);
+          detonate(px, py);
+          return;
+        }
+      }
     }
 
     for (const id of Object.keys(room.players)) {
@@ -972,6 +1027,46 @@ function ensureHost(room) {
   }
 }
 
+// === 우라늄 DOT tick (매초) ===
+setInterval(() => {
+  const now = Date.now();
+  Object.values(rooms).forEach(room => {
+    if (room.phase !== 'playing') return;
+    if (!room.radiationZones || room.radiationZones.length === 0) return;
+    // 만료된 zone 제거
+    const before = room.radiationZones.length;
+    room.radiationZones = room.radiationZones.filter(z => z.endsAt > now);
+    let changed = before !== room.radiationZones.length;
+    // 각 zone 안의 살아있는 탱크에게 DOT 데미지
+    room.radiationZones.forEach(z => {
+      Object.values(room.players).forEach(p => {
+        if (!p.alive) return;
+        const dx = p.x - z.x;
+        const dy = p.y - z.y;
+        if (Math.sqrt(dx * dx + dy * dy) < z.radius) {
+          p.hp = Math.max(0, p.hp - z.dps);
+          changed = true;
+          // 시각 표시용 — 오염 데미지 받는 중
+          p.radiationHitAt = now;
+          const shooter = room.players[z.shooterId];
+          if (shooter && shooter.id !== p.id) {
+            shooter.damageDealt = (shooter.damageDealt || 0) + z.dps;
+          }
+          if (p.hp <= 0) {
+            p.alive = false;
+            if (shooter && shooter.id !== p.id) {
+              shooter.kills = (shooter.kills || 0) + 1;
+              if (room.scores[shooter.id] == null) room.scores[shooter.id] = 0;
+              room.scores[shooter.id] += 50;
+            }
+          }
+        }
+      });
+    });
+    if (changed) broadcastState(room);
+  });
+}, 1000);
+
 function broadcastState(room) {
   ensureHost(room);
   io.to(room.id).emit('gameState', {
@@ -990,6 +1085,7 @@ function broadcastState(room) {
     turnTimeLeft: room.turnTimeLeft,
     itemBoxes: room.itemBoxes,
     airstrike: room.airstrike,
+    radiationZones: room.radiationZones || [],
   });
 }
 
