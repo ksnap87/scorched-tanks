@@ -407,17 +407,27 @@ socket.on('init', (data) => {
 function renderTankGrid() {
   const grid = document.getElementById('tankGrid');
   if (!grid || !tankTypes) return;
-  // 능력치 점수 기반 바 표시 — 같은 점수면 같은 길이
-  // 점수 환산: HP/4, range×25, move/8, speed×25  (합계 = 100)
-  // 각 stat의 점수가 50점이면 바 100%
+  // 능력치 점수 기반 바 표시
   const SCORE_DIVISOR = 50;
   const scoreOf = {
     hp: (v) => v / 4,
     range: (v) => v * 25,
     move: (v) => v / 8,
-    speed: (v) => v * 25,
   };
   const pct = (score) => Math.min(100, Math.max(0, Math.round((score / SCORE_DIVISOR) * 100)));
+  // 장전속도 — NORMAL + bomb2 평균 cooldown (server.js getCooldownMs 공식과 일치)
+  // baseCd: normal=1800, redbean=2800 → 평균 2300
+  // cd = baseCd + damage * 60
+  const computeReloadMs = (t) => {
+    const dmgN = (t.ammo && t.ammo.damage) || 30;
+    const dmgB = (t.bomb2 && t.bomb2.damage) || 30;
+    const cdN = 1800 + dmgN * 60;
+    const cdB = 2800 + dmgB * 60;
+    return (cdN + cdB) / 2;
+  };
+  // 바 길이 — 짧을수록 좋음 (inverse)
+  // 범위: 3000ms (빠름, 100%) ~ 6000ms (느림, 0%)
+  const reloadPct = (ms) => Math.min(100, Math.max(0, Math.round((6000 - ms) / 30)));
 
   let html = '';
   Object.values(tankTypes).forEach(t => {
@@ -425,7 +435,9 @@ function renderTankGrid() {
     const hpPct = pct(scoreOf.hp(t.hp));
     const rangePct = pct(scoreOf.range(t.range));
     const movePct = pct(scoreOf.move(t.move));
-    const speedPct = pct(scoreOf.speed(t.speed));
+    const reloadMs = computeReloadMs(t);
+    const reloadSeconds = (reloadMs / 1000).toFixed(1);
+    const rPct = reloadPct(reloadMs);
     html += `<div class="tank-card${isSel ? ' selected' : ''}" data-tank="${t.id}" onclick="selectTank('${t.id}')">
       <div class="tc-head">
         <span class="tc-flag">${t.flag}</span>
@@ -436,7 +448,7 @@ function renderTankGrid() {
         <div class="ts-row"><span class="ts-label">HP</span><span class="ts-bar"><span class="ts-fill hp" style="width:${hpPct}%"></span></span><span class="ts-val">${t.hp}</span></div>
         <div class="ts-row"><span class="ts-label">사거리</span><span class="ts-bar"><span class="ts-fill range" style="width:${rangePct}%"></span></span><span class="ts-val">${t.range}×</span></div>
         <div class="ts-row"><span class="ts-label">이동</span><span class="ts-bar"><span class="ts-fill move" style="width:${movePct}%"></span></span><span class="ts-val">${t.move}</span></div>
-        <div class="ts-row"><span class="ts-label">속도</span><span class="ts-bar"><span class="ts-fill speed" style="width:${speedPct}%"></span></span><span class="ts-val">${t.speed}×</span></div>
+        <div class="ts-row"><span class="ts-label">장전속도</span><span class="ts-bar"><span class="ts-fill speed" style="width:${rPct}%"></span></span><span class="ts-val">${reloadSeconds}s</span></div>
       </div>
     </div>`;
   });
@@ -867,8 +879,8 @@ function updateControls() {
       if (powerValue) powerValue.textContent = me.power;
     }
 
-    const budget = me.moveBudget != null ? Math.round(me.moveBudget) : 0;
-    if (moveBudgetValue) moveBudgetValue.textContent = budget;
+    const budget = me.moveBudget != null ? Math.max(0, Math.round(me.moveBudget)) : 0;
+    if (moveBudgetValue) moveBudgetValue.textContent = String(budget);
     const canMove = isMyTurn && !projectile && budget > 0;
     if (btnMoveLeft) btnMoveLeft.disabled = !canMove;
     if (btnMoveRight) btnMoveRight.disabled = !canMove;
@@ -956,8 +968,8 @@ function moveTankOnce(direction) {
     showToast('⚠️ 이동량 다 씀');
     return;
   }
-  const optimistic = Math.max(0, (me.moveBudget ?? 0) - 5);
-  if (moveBudgetValue) moveBudgetValue.textContent = optimistic;
+  const optimistic = Math.max(0, Math.round((me.moveBudget ?? 0) - 5));
+  if (moveBudgetValue) moveBudgetValue.textContent = String(optimistic);
   socket.emit('move', direction);
 }
 
@@ -971,11 +983,11 @@ function moveTankByDistance(direction) {
     return;
   }
   let dist = parseInt(moveDistInput && moveDistInput.value);
-  if (!Number.isFinite(dist) || dist <= 0) dist = 7;
+  if (!Number.isFinite(dist) || dist <= 0) dist = 2;   // 기본값 2
   dist = Math.max(1, Math.min(200, dist));
   const actual = Math.min(dist, me.moveBudget ?? 0);
-  const optimistic = Math.max(0, (me.moveBudget ?? 0) - actual);
-  if (moveBudgetValue) moveBudgetValue.textContent = optimistic;
+  const optimistic = Math.max(0, Math.round((me.moveBudget ?? 0) - actual));
+  if (moveBudgetValue) moveBudgetValue.textContent = String(optimistic);
   socket.emit('moveBy', { direction, distance: dist });
 }
 
@@ -1360,12 +1372,38 @@ function render() {
 function drawItemBoxes() {
   if (!state || !state.itemBoxes) return;
   const time = Date.now() / 500;
+  const now = Date.now();
   state.itemBoxes.forEach(box => {
-    const wobble = Math.sin(time + (box.wobblePhase || 0)) * 4;
-    const y = box.y + wobble;
     const x = box.x;
-    // 박스 type별 색/아이콘
     const type = box.type || 'laser';
+    // 낙하 애니메이션 — spawnedAt 이후 1.6초 동안 dropFromY → targetY 로 떨어짐
+    const targetY = (box.targetY != null) ? box.targetY : box.y;
+    const dropFromY = (box.dropFromY != null) ? box.dropFromY : -40;
+    const spawnedAt = box.spawnedAt || now;
+    const dropDuration = 1600;  // ms
+    const dropElapsed = now - spawnedAt;
+    const dropT = Math.max(0, Math.min(1, dropElapsed / dropDuration));
+    const eased = dropT * dropT;  // ease-in
+    // 비행기 그래픽: 0~0.6초 동안 화면 가로지름, box.x 도달 시점에 박스 드롭
+    const planeT = Math.max(0, Math.min(1, dropElapsed / 700));
+    const planeStartX = -80;
+    const planeX = planeStartX + (box.x + 60 - planeStartX) * planeT;
+    const planeY = dropFromY - 8;
+    // 박스가 떨어지기 시작하는 건 비행기가 box.x 근처 도달 후 (planeT >= 0.7)
+    let y;
+    if (dropT < 0.4) {
+      y = dropFromY;  // 비행기에서 아직 안 떨어짐
+    } else if (dropT < 1) {
+      const realDropT = (dropT - 0.4) / 0.6;
+      const dropEase = realDropT * realDropT;
+      y = dropFromY + (targetY - dropFromY) * dropEase;
+    } else {
+      // 안착 — wobble 살짝만 (땅에 박힌 모양)
+      const settleWobble = Math.sin(time + (box.wobblePhase || 0)) * 1.5;
+      y = targetY + settleWobble;
+    }
+
+    // 박스 type별 색/아이콘
     let chuteCol, glowCol, boxOuter, boxInner, icon, crossCol;
     if (type === 'repair') {
       chuteCol = 'rgba(46, 213, 115, 0.5)'; glowCol = '#2ED573'; boxOuter = '#2ED573'; boxInner = '#7BED9F'; icon = '🔧'; crossCol = '#0a3a18';
@@ -1376,45 +1414,120 @@ function drawItemBoxes() {
     }
 
     ctx.save();
-    // 패러슈트
-    ctx.fillStyle = chuteCol;
-    ctx.beginPath();
-    ctx.arc(x, y - 32, 18, Math.PI, 0);
-    ctx.closePath();
-    ctx.fill();
-    // 줄
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x - 10, y - 14); ctx.lineTo(x - 14, y - 30);
-    ctx.moveTo(x + 10, y - 14); ctx.lineTo(x + 14, y - 30);
-    ctx.stroke();
-    // 박스 외/내곽
-    ctx.shadowColor = glowCol;
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = boxOuter;
-    ctx.fillRect(x - 16, y - 14, 32, 30);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = boxInner;
-    ctx.fillRect(x - 13, y - 11, 26, 24);
-    // 십자 패턴
-    ctx.strokeStyle = crossCol;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x - 13, y + 1); ctx.lineTo(x + 13, y + 1);
-    ctx.moveTo(x, y - 11); ctx.lineTo(x, y + 13);
-    ctx.stroke();
-    // 아이콘
-    ctx.font = '700 16px system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(icon, x, y + 1);
-    // 핵폭탄은 추가 펄스 링
-    if (type === 'nuke') {
-      const pulse = 0.5 + Math.sin(Date.now() / 180) * 0.3;
-      ctx.strokeStyle = `rgba(255, 71, 87, ${pulse})`;
+    // === 비행기 (0~0.7초 동안만, 박스 드롭 직전까지) ===
+    if (planeT < 1 && dropT < 0.5) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(180, 200, 220, 0.95)';
+      ctx.strokeStyle = '#3a4252';
+      ctx.lineWidth = 1;
+      // 몸체
+      ctx.beginPath();
+      ctx.moveTo(planeX - 18, planeY);
+      ctx.lineTo(planeX + 14, planeY);
+      ctx.lineTo(planeX + 18, planeY + 3);
+      ctx.lineTo(planeX + 14, planeY + 6);
+      ctx.lineTo(planeX - 14, planeY + 6);
+      ctx.lineTo(planeX - 20, planeY + 3);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      // 날개 (위)
+      ctx.fillStyle = 'rgba(150, 170, 195, 0.9)';
+      ctx.fillRect(planeX - 4, planeY - 5, 14, 4);
+      // 꼬리
+      ctx.fillRect(planeX - 18, planeY - 5, 5, 5);
+      // 라이트 깜빡임
+      const blink = Math.floor(now / 200) % 2;
+      ctx.fillStyle = blink ? '#FF4757' : '#FFD93D';
+      ctx.beginPath();
+      ctx.arc(planeX + 16, planeY + 3, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // === 패러슈트 (낙하 중에만, 안착 후엔 사라짐) ===
+    if (dropT < 1) {
+      ctx.fillStyle = chuteCol;
+      ctx.beginPath();
+      ctx.arc(x, y - 32, 18, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y - 14); ctx.lineTo(x - 14, y - 30);
+      ctx.moveTo(x + 10, y - 14); ctx.lineTo(x + 14, y - 30);
+      ctx.stroke();
+    }
+
+    // === 박스 본체 ===
+    if (type === 'repair') {
+      // 공구박스 — 사다리꼴 + 손잡이 + 🔧
+      ctx.shadowColor = glowCol;
+      ctx.shadowBlur = 16;
+      // 손잡이 (위쪽 반원)
+      ctx.fillStyle = '#1a1d24';
+      ctx.beginPath();
+      ctx.roundRect(x - 8, y - 18, 16, 4, 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5a6878';
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y - 18, 6, Math.PI + 0.2, -0.2);
+      ctx.stroke();
+      // 박스 본체 (사다리꼴: 위가 좁음)
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = boxOuter;
+      ctx.beginPath();
+      ctx.moveTo(x - 14, y - 14);
+      ctx.lineTo(x + 14, y - 14);
+      ctx.lineTo(x + 17, y + 14);
+      ctx.lineTo(x - 17, y + 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // 내부 패널
+      ctx.fillStyle = boxInner;
+      ctx.beginPath();
+      ctx.moveTo(x - 11, y - 11);
+      ctx.lineTo(x + 11, y - 11);
+      ctx.lineTo(x + 14, y + 11);
+      ctx.lineTo(x - 14, y + 11);
+      ctx.closePath();
+      ctx.fill();
+      // 잠금장치
+      ctx.fillStyle = '#1a1d24';
+      ctx.fillRect(x - 4, y - 3, 8, 5);
+      // 아이콘
+      ctx.font = '700 14px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('🔧', x, y + 7);
+    } else {
+      // 기존 패러슈트 박스 (laser, nuke)
+      ctx.shadowColor = glowCol;
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = boxOuter;
+      ctx.fillRect(x - 16, y - 14, 32, 30);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = boxInner;
+      ctx.fillRect(x - 13, y - 11, 26, 24);
+      ctx.strokeStyle = crossCol;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 13, y + 1); ctx.lineTo(x + 13, y + 1);
+      ctx.moveTo(x, y - 11); ctx.lineTo(x, y + 13);
+      ctx.stroke();
+      ctx.font = '700 16px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(icon, x, y + 1);
+      if (type === 'nuke') {
+        const pulse = 0.5 + Math.sin(Date.now() / 180) * 0.3;
+        ctx.strokeStyle = `rgba(255, 71, 87, ${pulse})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI * 2); ctx.stroke();
+      }
     }
     ctx.restore();
   });
@@ -2387,6 +2500,8 @@ function drawRadiationZones() {
     const rightFlow = rightTY > centerTY ? 1.6 : (rightTY < centerTY ? 0.4 : 1.0);
     const minX = Math.max(0, z.x - baseSpread * leftFlow);
     const maxX = Math.min(canvas.width, z.x + baseSpread * rightFlow);
+    // 두께 감쇠 기준 거리 (회귀 fix — 이전엔 flowRange 미정의로 ReferenceError → ctx state 깨져 탱크 사라짐)
+    const flowRange = Math.max(1, baseSpread * Math.max(leftFlow, rightFlow));
     // 위쪽 윤곽 (지형 위 약간 띄움, 중심 두껍게)
     ctx.beginPath();
     ctx.moveTo(minX, getClientTerrainY(minX));
@@ -2515,40 +2630,65 @@ function drawGuidedTrajectory() {
 function drawTankHull(player) {
   const x = player.x, y = player.y, color = player.color;
   const tt = player.tankType;
-  // === 시즈모드 발판 (선명한 금속, 양쪽 고정) ===
+  // === 시즈모드 발판 (지면 각도에 맞춰 사다리꼴로, 양옆 다리는 지면까지 닿게) ===
   if (player.siegeMode === 'sieged' || player.siegeMode === 'transforming' || player.siegeMode === 'untransforming') {
     const phase = player.siegeMode === 'sieged' ? 1
                 : player.siegeMode === 'transforming' ? Math.min(1, (Date.now() - (player.siegeChangedAt || 0)) / 4000)
                 : Math.max(0, 1 - (Date.now() - (player.siegeChangedAt || 0)) / 4000);
     const legW = 22 * phase;
-    // 다리 본체 (그라데이션 + 외곽선)
+    // 지면 y (월드 좌표) — 좌/우 다리가 닿을 지면 높이
+    // drawTanks 가 player._tiltAngle 좌표계 안에서 호출되므로, 다리 끝 y 도 그 회전 좌표계에 맞춰 계산
+    // 회전 좌표계에서 다리 base는 y+4, tip은 살짝 더 아래로 — 지면에 박힌 모양
+    const t = player._tiltAngle || 0;
+    // tilt 가 있을 땐 한쪽 다리는 더 깊이, 한쪽은 얕게 박힘 (회전된 좌표계에서 추가 dy)
+    // canvas 좌표 yR > yL = 오른쪽 지면이 낮음 → tilt > 0 → 회전 후 오른쪽 다리는 더 멀리 박힘
+    const tipExtra = Math.abs(t) * 14;  // 기울기 비례 추가 박힘 길이
+    const leftTipY  = y + 11 + (t < 0 ? tipExtra : 0);   // 왼쪽 지면이 낮으면 (t<0) 왼쪽 더 깊이
+    const rightTipY = y + 11 + (t > 0 ? tipExtra : 0);   // 오른쪽 지면이 낮으면 (t>0) 오른쪽 더 깊이
     ctx.save();
     ctx.shadowColor = '#FFD93D';
     ctx.shadowBlur = phase > 0.5 ? 10 : 0;
-    const grad = ctx.createLinearGradient(x, y + 4, x, y + 12);
+    const grad = ctx.createLinearGradient(x, y + 4, x, y + 14);
     grad.addColorStop(0, '#5a6878');
     grad.addColorStop(1, '#2a2e38');
     ctx.fillStyle = grad;
-    ctx.fillRect(x - 18 - legW, y + 4, legW, 7);
-    ctx.fillRect(x + 18,        y + 4, legW, 7);
-    // 다리 외곽선
+    // 왼쪽 다리 사다리꼴
+    ctx.beginPath();
+    ctx.moveTo(x - 18,        y + 4);
+    ctx.lineTo(x - 18,        y + 11);
+    ctx.lineTo(x - 18 - legW, leftTipY);
+    ctx.lineTo(x - 18 - legW, y + 4);
+    ctx.closePath();
+    ctx.fill();
+    // 오른쪽 다리 사다리꼴
+    ctx.beginPath();
+    ctx.moveTo(x + 18,        y + 4);
+    ctx.lineTo(x + 18,        y + 11);
+    ctx.lineTo(x + 18 + legW, rightTipY);
+    ctx.lineTo(x + 18 + legW, y + 4);
+    ctx.closePath();
+    ctx.fill();
+    // 외곽선
     ctx.strokeStyle = '#1a1d24';
     ctx.lineWidth = 1;
-    ctx.strokeRect(x - 18 - legW, y + 4, legW, 7);
-    ctx.strokeRect(x + 18,        y + 4, legW, 7);
-    // 다리 안 디테일 (리벳)
+    ctx.beginPath();
+    ctx.moveTo(x - 18,        y + 4); ctx.lineTo(x - 18,        y + 11);
+    ctx.lineTo(x - 18 - legW, leftTipY); ctx.lineTo(x - 18 - legW, y + 4); ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 18,        y + 4); ctx.lineTo(x + 18,        y + 11);
+    ctx.lineTo(x + 18 + legW, rightTipY); ctx.lineTo(x + 18 + legW, y + 4); ctx.closePath();
+    ctx.stroke();
+    // 다리 안 리벳
     ctx.fillStyle = '#FFD93D';
     for (let i = 4; i < legW; i += 6) {
       ctx.fillRect(x - 18 - legW + i, y + 6, 2, 2);
       ctx.fillRect(x + 18 + i, y + 6, 2, 2);
     }
-    // 발판 끝 받침 (크고 진하게)
+    // 다리 끝 — 지면에 박힌 못 (땅에 꽂힌 표현)
     ctx.fillStyle = '#1a1d24';
-    ctx.fillRect(x - 18 - legW - 2, y + 10, 4, 6);
-    ctx.fillRect(x + 18 + legW - 2, y + 10, 4, 6);
-    ctx.fillStyle = '#3a3a44';
-    ctx.fillRect(x - 18 - legW - 4, y + 14, 8, 3);
-    ctx.fillRect(x + 18 + legW - 4, y + 14, 8, 3);
+    ctx.fillRect(x - 18 - legW - 2, leftTipY - 1, 4, 4);
+    ctx.fillRect(x + 18 + legW - 2, rightTipY - 1, 4, 4);
     ctx.restore();
   }
   // 측면 펜더 (모두 공통)
@@ -2661,6 +2801,7 @@ function drawTankHull(player) {
 }
 
 function drawTankBarrel(player, isMyTurn) {
+  ctx.save();   // ★ ctx 상태 누수 차단 — 함수 끝에서 restore
   const x = player.x, y = player.y, color = player.color;
   const tt = player.tankType;
   let len = 22, width = 4, offY = -4;
@@ -2709,6 +2850,7 @@ function drawTankBarrel(player, isMyTurn) {
     ctx.fill();
     ctx.shadowBlur = 0;
   }
+  ctx.restore();   // ★ shadow/strokeStyle 등 모두 원복
 }
 
 function drawTanks() {
@@ -2719,26 +2861,38 @@ function drawTanks() {
 
     const x = player.x;
     const y = player.y;
+    // NaN/Infinity 가드 — 좌표가 깨지면 그리지 않고 스킵 (탱크 사라짐 방지)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
     const color = player.color;
     const isMyTurn = state.currentTurn === player.id;
     const isMe = player.id === myId;
 
+    ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
     ctx.ellipse(x, y + 10, 18, 5, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     // 지형 기울기에 따라 탱크 회전 (시즈모드일 땐 회전 X — 발판으로 고정)
     let tiltAngle = 0;
-    if (player.siegeMode !== 'sieged' && state.terrain) {
-      const xL = Math.max(0, x - 16);
-      const xR = Math.min(canvas.width - 1, x + 16);
-      const yL = state.terrain[Math.floor(xL / 2)] || y;
-      const yR = state.terrain[Math.floor(xR / 2)] || y;
-      tiltAngle = Math.atan2(yR - yL, 32);
-      // 너무 큰 회전 cap (보기 어색)
-      tiltAngle = Math.max(-0.7, Math.min(0.7, tiltAngle));
+    if (player.siegeMode !== 'sieged' && state.terrain && state.terrain.length > 0) {
+      const xL = Math.max(0, Math.floor((x - 16) / 2));
+      const xR = Math.min(state.terrain.length - 1, Math.floor((x + 16) / 2));
+      const yL = state.terrain[xL];
+      const yR = state.terrain[xR];
+      if (Number.isFinite(yL) && Number.isFinite(yR)) {
+        const t = Math.atan2(yR - yL, 32);
+        if (Number.isFinite(t)) {
+          tiltAngle = Math.max(-0.7, Math.min(0.7, t));
+        }
+      }
     }
+    // 최종 NaN 방어
+    if (!Number.isFinite(tiltAngle)) tiltAngle = 0;
+    // 탱크 객체에 저장 (drawTankHull의 siege-legs가 지면까지 닿게 그리는 데 사용)
+    player._tiltAngle = tiltAngle;
 
     ctx.save();
     if (Math.abs(tiltAngle) > 0.02) {

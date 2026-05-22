@@ -663,7 +663,9 @@ function spawnItemBox(room) {
     return;
   }
   const x = 220 + Math.random() * (CANVAS_WIDTH - 440);
-  const y = 100 + Math.random() * 130;
+  // 지형 표면 위에 안착하도록 targetY 계산 (박스 반높이 14px만큼 위)
+  const groundY = getTerrainY(room.terrain, x);
+  const targetY = groundY - 14;
   // 박스 타입 — 8턴 이전엔 laser/repair만, 8턴 이후 nuke 일정 확률로 등장
   const turnsPassed = room.turnsTotal || 0;
   const r = Math.random();
@@ -673,11 +675,13 @@ function spawnItemBox(room) {
   else type = 'repair';
   room.itemBoxes.push({
     id: room.nextItemBoxId++,
-    x, y,
+    x,
+    y: targetY,                  // 최종 안착 y (지면 위)
+    targetY,                     // 클라 애니메이션용
     type,
     wobblePhase: Math.random() * Math.PI * 2,
     spawnedAt: Date.now(),       // 클라가 비행기 떨어뜨리는 애니메이션 시작점
-    dropFromY: -30 - Math.random() * 30,  // 시작 y (하늘 위)
+    dropFromY: -40,              // 시작 y (하늘 위, 비행기 고도)
   });
   broadcastState(room);
   room.itemSpawnTimer = setTimeout(() => spawnItemBox(room), ITEM_BOX_RESPAWN);
@@ -904,8 +908,7 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < radius * 1.5) {
-      // 자기 폭탄(redbean=bomb2)에 본인은 데미지 X — 자기 발치 폭발 보호
-      if (shooter && id === shooter.id && weaponType === 'redbean') return;
+      // 자해 허용 — 본인 폭탄에 본인도 데미지 받음
       const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)));
       const actualDamage = Math.max(damage, 5);
       player.hp = Math.max(0, player.hp - actualDamage);
@@ -933,12 +936,7 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     const terrainY = getTerrainY(room.terrain, player.x);
     const newY = terrainY - TANK_HEIGHT / 2;
 
-    // 자기 폭탄(bomb2=redbean) 시 자기 fall damage 면역 (우라늄/멀티탄/빨콩 등 자해 방지)
-    if (shooter && player.id === shooter.id && weaponType === 'redbean') {
-      player.y = newY;
-      return;
-    }
-
+    // 자해 허용 — 본인 폭탄으로 인한 낙하 데미지도 적용
     const fallDistance = newY - oldY;
 
     if (fallDistance > 5) {
@@ -965,13 +963,10 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   // 팀전 — 한 팀 전원 사망 체크 (즉시)
   if (!isSubExplosion && room.teamMode) checkTeamGameEnd(room);
 
-  // bomb2 폭발 후 DOT 지역 생성 (우라늄 = 방사능, 화염탄 = 불)
+  // bomb2 폭발 후 DOT 지역 생성 (우라늄 = 방사능, 화염탄 = 불) — 자해 허용 (본인 근처에도 생성)
   if (!isSubExplosion && weaponType === 'redbean' && shooter) {
     const tankDef = getTankDef(shooter.tankType);
-    // 발사자 본인 위치와 너무 가까우면 zone 생성 X (자기 발치 폭발 안전)
-    const distToShooter = Math.sqrt((x - shooter.x) ** 2 + (y - shooter.y) ** 2);
-    const tooClose = distToShooter < 45;
-    if (tankDef.bomb2 && tankDef.bomb2.kind === 'uranium' && !tooClose) {
+    if (tankDef.bomb2 && tankDef.bomb2.kind === 'uranium') {
       if (!room.radiationZones) room.radiationZones = [];
       room.radiationZones.push({
         id: room.nextZoneId++,
@@ -983,7 +978,7 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
         shooterId: shooter.id,
         dotKind: 'uranium',
       });
-    } else if (tankDef.bomb2 && tankDef.bomb2.fire && !tooClose) {
+    } else if (tankDef.bomb2 && tankDef.bomb2.fire) {
       // 화염탄 (중국 ZTZ-99) — 폭발 후 불 지역 생성
       if (!room.radiationZones) room.radiationZones = [];
       const fireY = getTerrainY(room.terrain, x);  // 불은 지형 위에
@@ -1029,10 +1024,25 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 // 탱크별 포신 길이 (drawTanks의 barrel과 일치)
 const BARREL_LEN_BY_TANK = { K2: 26, M1A2: 24, T90: 22, LEO2: 28, T10: 20, ZTZ99: 22 };
 
-function simulateProjectile(startX, startY, angle, power, shooter) {
+function simulateProjectile(startX, startY, angle, power, shooter, room) {
   const tankDef = shooter ? getTankDef(shooter.tankType) : getTankDef(DEFAULT_TANK);
   const factor = (tankDef.range || 1.0) * (tankDef.speed || 1.0);
-  const radians = angle * Math.PI / 180;
+
+  // 지형 기울기 — 탱크가 기울어진 방향으로 발사도 비스듬히 (시즈모드는 수평 고정)
+  let tiltDeg = 0;
+  if (room && room.terrain && (!shooter || shooter.siegeMode !== 'sieged')) {
+    const yL = getTerrainY(room.terrain, startX - 16);
+    const yR = getTerrainY(room.terrain, startX + 16);
+    const tiltRad = Math.atan2(yR - yL, 32);
+    if (Number.isFinite(tiltRad)) {
+      // angle 컨벤션: server 0=오른쪽, 90=수직위, 180=왼쪽
+      // 탱크가 오른쪽이 아래로 기울었으면(yR>yL→tiltRad>0) 탱크 위는 왼쪽으로 회전 → angle 증가
+      tiltDeg = Math.max(-40, Math.min(40, tiltRad * 180 / Math.PI));
+    }
+  }
+  const effAngle = angle + tiltDeg;
+  const radians = effAngle * Math.PI / 180;
+
   // 포신 끝(머즐)에서 발사 — 탱크 포탑 중심 (startY - 4) 기준
   const turretY = startY - 4;
   const barrelLen = BARREL_LEN_BY_TANK[shooter ? shooter.tankType : null] || 22;
@@ -1109,7 +1119,7 @@ function startFire(room, player, weaponType, useDouble) {
     }
   }
 
-  const proj = simulateProjectile(player.x, player.y, player.angle, player.power, player);
+  const proj = simulateProjectile(player.x, player.y, player.angle, player.power, player, room);
   proj.type = actualWeapon;
   proj.shooterId = player.id;
   // ZTZ-99 샷건탄 — airBurst 거리 설정
@@ -1321,7 +1331,8 @@ function startFire(room, player, weaponType, useDouble) {
         for (const id of Object.keys(room.players)) {
           const target = room.players[id];
           if (!target.alive) continue;
-          if (target.id === p.shooterId) continue;
+          // 본인은 포구 거리(40px) 이전엔 즉발 방지, 그 이후는 자해 허용
+          if (target.id === p.shooterId && distFromShooter < 40) continue;
           const dx = target.x - px;
           const dy = target.y - py;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1338,7 +1349,12 @@ function startFire(room, player, weaponType, useDouble) {
     for (const id of Object.keys(room.players)) {
       const target = room.players[id];
       if (!target.alive) continue;
-      if (target.id === p.shooterId) continue;  // 발사자 본인 제외 (자기 포탄에 즉발 방지)
+      // 자해 허용 — 단, 발사 직후(포구에서 40px 이내)는 즉발 방지
+      if (target.id === p.shooterId) {
+        const dxs = px - target.x;
+        const dys = py - target.y;
+        if (Math.sqrt(dxs * dxs + dys * dys) < 40) continue;
+      }
       const dx = target.x - px;
       const dy = target.y - py;
       if (Math.sqrt(dx * dx + dy * dy) < 20) {
@@ -1378,7 +1394,7 @@ setInterval(() => {
     room.radiationZones.forEach(z => {
       Object.values(room.players).forEach(p => {
         if (!p.alive) return;
-        if (z.shooterId === p.id) return;  // 발사자 본인은 자기 zone 면역 (방호복)
+        // 자해 허용 — 본인 zone에도 데미지
         const dx = p.x - z.x;
         const dy = p.y - z.y;
         if (Math.sqrt(dx * dx + dy * dy) < z.radius) {
@@ -1704,7 +1720,8 @@ io.on('connection', (socket) => {
 
     player.x = newX;
     player.y = getTerrainY(r.terrain, newX) - TANK_HEIGHT / 2;
-    player.moveBudget = Math.max(0, player.moveBudget - actualStep);
+    // 소수점 누적 방지 — 정수로 라운드
+    player.moveBudget = Math.max(0, Math.round(player.moveBudget - actualStep));
 
     broadcastState(r);
   });
@@ -1742,7 +1759,8 @@ io.on('connection', (socket) => {
 
     player.x = newX;
     player.y = getTerrainY(r.terrain, newX) - TANK_HEIGHT / 2;
-    player.moveBudget = Math.max(0, player.moveBudget - actualStep);
+    // 소수점 누적 방지 — 정수로 라운드
+    player.moveBudget = Math.max(0, Math.round(player.moveBudget - actualStep));
 
     broadcastState(r);
   });

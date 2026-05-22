@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -134,7 +134,7 @@
       <div class="control-group move-group">
         <span class="ctrl-label">MOVE</span>
         <button class="btn-move" id="btnMoveLeft" onclick="moveTankByDistance(-1)">◀</button>
-        <input type="number" id="moveDistInput" class="num-input" min="1" max="200" value="7" title="이동 거리 (px)">
+        <input type="number" id="moveDistInput" class="num-input" min="1" max="200" value="2" title="이동 거리 (px)">
         <button class="btn-move" id="btnMoveRight" onclick="moveTankByDistance(1)">▶</button>
         <span class="ctrl-sub">/ <span id="moveBudgetValue">200</span></span>
       </div>
@@ -246,6 +246,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=18"></script>
+  <script src="game.js?v=19"></script>
 </body>
 </html>
