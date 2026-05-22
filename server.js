@@ -251,7 +251,7 @@ const TANK_TYPES = {
            hp: 130, range: 1.2, move: 130, speed: 1.0, moveSpeed: 1.3,
            desc: '우라늄탄 DOT',
            ammo:  { kind: 'AP',     radius: 5,  damage: 30 },
-           bomb2: { kind: 'uranium', name: '우라늄탄', damage: 10, radius: 5, range: 1.2, dotRadius: 10, dotDps: 1, dotDuration: 8 },
+           bomb2: { kind: 'uranium', name: '우라늄탄', damage: 10, radius: 10, range: 1.2, dotRadius: 22, dotDps: 2, dotDuration: 8 },
            ultimate: { kind: 'drone_grenade',   name: '드론 수류탄',   damage: 20, radius: 5,  terrainRadius: 5 } },
   T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵',
            hp: 110, range: 0.7, move: 170, speed: 1.0, moveSpeed: 2.3,
