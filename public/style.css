@@ -566,7 +566,7 @@ body {
 
 .ts-row {
   display: grid;
-  grid-template-columns: 38px 1fr 32px;
+  grid-template-columns: 38px 1fr 44px;
   align-items: center;
   gap: 5px;
   font-size: 0.7rem;
@@ -604,6 +604,8 @@ body {
   font-weight: 700;
   font-family: 'Orbitron', monospace;
   font-size: 0.65rem;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .btn {

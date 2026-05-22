@@ -127,6 +127,8 @@ app.get('/api/stats/:username', async (req, res) => {
 // === Stats persistence helpers ===
 async function persistMatchResult(room, winnerId) {
   if (!AUTH_ENABLED) return;
+  // 연습 게임(1명) 또는 비공식 매치는 전적 기록 안 함
+  if (Object.keys(room.players).length < 2) return;
   const inserts = [];
   for (const [pid, p] of Object.entries(room.players)) {
     if (!p.userId) continue; // 게스트는 기록 안 함

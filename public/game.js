@@ -407,24 +407,25 @@ socket.on('init', (data) => {
 function renderTankGrid() {
   const grid = document.getElementById('tankGrid');
   if (!grid || !tankTypes) return;
-  // 같은 능력치 점수면 같은 바 길이가 되도록 — 각 stat의 게임 내 최대값을 100%로
-  let hpMax = 0, rangeMax = 0, moveMax = 0, speedMax = 0;
-  Object.values(tankTypes).forEach(t => {
-    if (t.hp > hpMax) hpMax = t.hp;
-    if (t.range > rangeMax) rangeMax = t.range;
-    if (t.move > moveMax) moveMax = t.move;
-    if (t.speed > speedMax) speedMax = t.speed;
-  });
-  // 0으로 나누기 방지
-  hpMax = hpMax || 1; rangeMax = rangeMax || 1; moveMax = moveMax || 1; speedMax = speedMax || 1;
+  // 능력치 점수 기반 바 표시 — 같은 점수면 같은 길이
+  // 점수 환산: HP/4, range×25, move/8, speed×25  (합계 = 100)
+  // 각 stat의 점수가 50점이면 바 100%
+  const SCORE_DIVISOR = 50;
+  const scoreOf = {
+    hp: (v) => v / 4,
+    range: (v) => v * 25,
+    move: (v) => v / 8,
+    speed: (v) => v * 25,
+  };
+  const pct = (score) => Math.min(100, Math.max(0, Math.round((score / SCORE_DIVISOR) * 100)));
 
   let html = '';
   Object.values(tankTypes).forEach(t => {
     const isSel = (selectedTank === t.id);
-    const hpPct = Math.round((t.hp / hpMax) * 100);
-    const rangePct = Math.round((t.range / rangeMax) * 100);
-    const movePct = Math.round((t.move / moveMax) * 100);
-    const speedPct = Math.round((t.speed / speedMax) * 100);
+    const hpPct = pct(scoreOf.hp(t.hp));
+    const rangePct = pct(scoreOf.range(t.range));
+    const movePct = pct(scoreOf.move(t.move));
+    const speedPct = pct(scoreOf.speed(t.speed));
     html += `<div class="tank-card${isSel ? ' selected' : ''}" data-tank="${t.id}" onclick="selectTank('${t.id}')">
       <div class="tc-head">
         <span class="tc-flag">${t.flag}</span>
