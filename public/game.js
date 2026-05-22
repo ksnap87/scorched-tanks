@@ -1910,6 +1910,162 @@ function drawTerrain() {
   ctx.stroke();
 }
 
+// === 탱크별 실루엣 ===
+// 각국 실제 탱크 특징 반영: 포탑 크기/모양, 본체 길이, 부속 (배기관, ERA 블록, 슬랫 장갑, 모듈식 장갑, 랜딩기어 등)
+function drawTankHull(player) {
+  const x = player.x, y = player.y, color = player.color;
+  const tt = player.tankType;
+  // 측면 펜더 (모두 공통)
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.roundRect(x - 16, y + 3, 32, 5, [0, 0, 2, 2]);
+  ctx.fill();
+  switch (tt) {
+    case 'K2': {
+      // 한국 K2 흑표 — 슬림 본체 + 평평한 낮은 포탑
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - 17, y - 2, 34, 11, 2); ctx.fill();
+      // 평평한 포탑 (낮음)
+      ctx.beginPath(); ctx.roundRect(x - 10, y - 9, 20, 7, [3, 3, 1, 1]); ctx.fill();
+      // 포탑 상단 디테일 (조준경)
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(x + 3, y - 10, 4, 2);
+      break;
+    }
+    case 'M1A2': {
+      // 미국 M1A2 — 두꺼운 본체 + 큰 박스형 포탑
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - 18, y - 4, 36, 13, 2); ctx.fill();
+      // 큰 박스형 포탑
+      ctx.beginPath(); ctx.roundRect(x - 12, y - 13, 24, 11, [2, 2, 1, 1]); ctx.fill();
+      // 포탑 뒤쪽 컨테이너 (특징적)
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(x - 11, y - 8, 6, 5);
+      // 배기관 (오른쪽 후방)
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(x + 13, y - 2, 5, 4);
+      break;
+    }
+    case 'T90': {
+      // 러시아 T-90 — 매우 낮고 둥근 포탑 + ERA 블록
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - 16, y - 1, 32, 10, 3); ctx.fill();
+      // 둥근 낮은 포탑 (반원)
+      ctx.beginPath();
+      ctx.ellipse(x, y - 6, 12, 6, 0, Math.PI, 0); ctx.fill();
+      ctx.fillRect(x - 12, y - 6, 24, 5);
+      // ERA 폭발 반응장갑 블록 (앞면)
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(x - 11, y - 11, 3, 3);
+      ctx.fillRect(x - 7, y - 11, 3, 3);
+      ctx.fillRect(x - 3, y - 11, 3, 3);
+      ctx.fillRect(x + 1, y - 11, 3, 3);
+      ctx.fillRect(x + 5, y - 11, 3, 3);
+      break;
+    }
+    case 'LEO2': {
+      // 독일 Leopard 2 — 길고 평평한 본체 + 각진 박스 포탑
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - 18, y - 3, 36, 12, 1); ctx.fill();
+      // 각진 포탑 (앞이 비스듬한 사다리꼴)
+      ctx.beginPath();
+      ctx.moveTo(x - 12, y - 3);
+      ctx.lineTo(x - 12, y - 11);
+      ctx.lineTo(x + 4, y - 11);
+      ctx.lineTo(x + 12, y - 5);
+      ctx.lineTo(x + 12, y - 3);
+      ctx.closePath(); ctx.fill();
+      // 슬랫 장갑 (사이드)
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(x - 17 + i * 7, y + 4, 1.5, 3);
+      }
+      break;
+    }
+    case 'T10': {
+      // 일본 10식 — 컴팩트 본체 + 모듈식 장갑
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - 14, y - 2, 28, 11, 2); ctx.fill();
+      // 작은 평평한 포탑
+      ctx.beginPath(); ctx.roundRect(x - 9, y - 10, 18, 8, [3, 3, 1, 1]); ctx.fill();
+      // 모듈식 장갑 패널 (옆면 사각 패널)
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(x - 13, y - 1, 5, 4);
+      ctx.fillRect(x - 6, y - 1, 5, 4);
+      ctx.fillRect(x + 1, y - 1, 5, 4);
+      ctx.fillRect(x + 8, y - 1, 5, 4);
+      // 포탑 상단 (날렵한 라인)
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillRect(x - 8, y - 10, 16, 1);
+      break;
+    }
+    case 'ZTZ99': {
+      // 중국 ZTZ-99 — T-72 계열, 낮은 본체 + 둥근 작은 포탑
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - 17, y - 1, 34, 10, 2); ctx.fill();
+      // 둥근 포탑 (작고 낮음)
+      ctx.beginPath();
+      ctx.ellipse(x, y - 5, 10, 5, 0, Math.PI, 0); ctx.fill();
+      ctx.fillRect(x - 10, y - 5, 20, 4);
+      // 포탑 위 광학 장비 (직사각형)
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(x - 3, y - 11, 4, 3);
+      // 측면 사이드 스커트
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(x - 17, y + 5, 34, 3);
+      break;
+    }
+    default: {
+      // 기본 (LEO2 외 그 외 fallback)
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - 15, y - 4, 30, 12, 3); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y - 4, 8, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawTankBarrel(player, isMyTurn) {
+  const x = player.x, y = player.y, color = player.color;
+  const tt = player.tankType;
+  let len = 22, width = 4, offY = -4;
+  switch (tt) {
+    case 'K2':    len = 26; width = 3;   offY = -7;  break;  // 길고 슬림
+    case 'M1A2':  len = 24; width = 5;   offY = -9;  break;  // 굵음
+    case 'T90':   len = 22; width = 3.5; offY = -6;  break;  // 표준
+    case 'LEO2':  len = 28; width = 3;   offY = -7;  break;  // 장거리 = 가장 김
+    case 'T10':   len = 20; width = 3;   offY = -7;  break;  // 짧음
+    case 'ZTZ99': len = 22; width = 3.5; offY = -5;  break;  // 표준
+  }
+  const angle = player.angle * Math.PI / 180;
+  const startX = x;
+  const startY = y + offY;
+  const bx = startX + Math.cos(angle) * len;
+  const by = startY - Math.sin(angle) * len;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
+  // M1A2: 굵은 머즐 브레이크 (포구 제동기)
+  if (tt === 'M1A2') {
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(bx, by, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (isMyTurn) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(bx, by, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
 function drawTanks() {
   if (!state.players) return;
 
@@ -1927,43 +2083,10 @@ function drawTanks() {
     ctx.ellipse(x, y + 10, 18, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.roundRect(x - 15, y - 4, 30, 12, 3);
-    ctx.fill();
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y - 4, 8, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.beginPath();
-    ctx.roundRect(x - 15, y + 2, 30, 6, [0, 0, 3, 3]);
-    ctx.fill();
-
-    const barrelAngle = player.angle * Math.PI / 180;
-    const barrelLen = 22;
-    const bx = x + Math.cos(barrelAngle) * barrelLen;
-    const by = y - 4 - Math.sin(barrelAngle) * barrelLen;
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x, y - 4);
-    ctx.lineTo(bx, by);
-    ctx.stroke();
-
-    if (isMyTurn) {
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(bx, by, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
+    // 탱크별 본체 + 포탑 실루엣
+    drawTankHull(player);
+    // 탱크별 포신 (각도 회전, 다른 길이/굵기)
+    drawTankBarrel(player, isMyTurn);
 
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     for (let i = -12; i <= 12; i += 6) {
@@ -2010,31 +2133,101 @@ function drawProjectile() {
 
   const isRedBean = projectile.type === 'redbean';
   const isLaser = projectile.type === 'laser_guided';
+  const shooter = state && state.players && projectile.shooterId ? state.players[projectile.shooterId] : null;
+  const tt = shooter ? shooter.tankType : null;
+
+  // 기본
   let innerColor = '#fff';
   let outerColor = 'rgba(255, 71, 87, 0.6)';
   let glowColor = '#FF4757';
   let projRadius = 4;
-  if (isRedBean) {
-    innerColor = '#FF4757'; outerColor = 'rgba(255, 0, 0, 0.8)'; glowColor = '#FF0000'; projRadius = 3;
-  } else if (isLaser) {
+  let shape = 'circle'; // 'circle' | 'rod' | 'pellet' | 'finned'
+
+  if (isLaser) {
     innerColor = '#FFD93D'; outerColor = 'rgba(255, 217, 61, 0.7)'; glowColor = '#FFA502'; projRadius = 5;
+  } else if (isRedBean) {
+    // BOMB2 — 탱크별 디자인
+    switch (tt) {
+      case 'K2':    innerColor = '#FF4757'; outerColor = 'rgba(255,0,0,0.8)';    glowColor = '#FF0000'; projRadius = 3; break;                  // 빨콩
+      case 'M1A2':  innerColor = '#8B6F47'; outerColor = 'rgba(255,165,2,0.7)';  glowColor = '#FFA502'; projRadius = 3; shape = 'pellet'; break; // 멀티 펠릿
+      case 'T90':   innerColor = '#7BED9F'; outerColor = 'rgba(46,213,115,0.8)'; glowColor = '#2ED573'; projRadius = 4; break;                  // 우라늄 (방사능 녹색)
+      case 'T10':   innerColor = '#fff';    outerColor = 'rgba(124,196,255,0.8)'; glowColor = '#7CC4FF'; projRadius = 4; shape = 'rod'; break;   // 유도탄 (흰 막대)
+      case 'ZTZ99': innerColor = '#FFD93D'; outerColor = 'rgba(255,165,2,0.7)';  glowColor = '#FFA502'; projRadius = 4; break;                  // 샷건 핀
+      default:      innerColor = '#FF4757'; outerColor = 'rgba(255,0,0,0.8)';    glowColor = '#FF0000'; projRadius = 3;
+    }
+  } else {
+    // NORMAL — 탱크별 디자인 (탄종 차별: HE/HEAT/AP/APFSDS)
+    switch (tt) {
+      case 'K2':    innerColor = '#d8d8dc'; outerColor = 'rgba(255,71,87,0.45)';   glowColor = '#FF4757'; projRadius = 4;   break; // 표준 HE
+      case 'M1A2':  innerColor = '#aaa';    outerColor = 'rgba(255,165,2,0.55)';   glowColor = '#FFA502'; projRadius = 5;   break; // 큰 HEAT
+      case 'T90':   innerColor = '#cfcfd4'; outerColor = 'rgba(255,71,87,0.45)';   glowColor = '#FF6B81'; projRadius = 4;   shape = 'finned'; break; // AP 화살촉
+      case 'T10':   innerColor = '#FFD93D'; outerColor = 'rgba(255,217,61,0.55)';  glowColor = '#FFA502'; projRadius = 3.5; break; // 빠른 HE
+      case 'ZTZ99': innerColor = '#d8d8dc'; outerColor = 'rgba(255,71,87,0.45)';   glowColor = '#FF4757'; projRadius = 4;   break; // 표준 HE
+      case 'LEO2':  innerColor = '#fff';    outerColor = 'rgba(255,217,61,0.6)';   glowColor = '#FFD93D'; projRadius = 5;   shape = 'rod'; break; // APFSDS 긴 막대
+    }
   }
 
+  ctx.save();
   ctx.shadowColor = glowColor;
   ctx.shadowBlur = isLaser ? 22 : 15;
-
   ctx.fillStyle = innerColor;
-  ctx.beginPath();
-  ctx.arc(projectile.x, projectile.y, projRadius, 0, Math.PI * 2);
-  ctx.fill();
 
-  ctx.strokeStyle = outerColor;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(projectile.x, projectile.y, projRadius + 3, 0, Math.PI * 2);
-  ctx.stroke();
+  if (shape === 'rod') {
+    // 막대 (APFSDS / 정밀 유도탄) — 비행 방향 따라 회전
+    const ang = Math.atan2(projectile.vy || 0, projectile.vx || 1);
+    ctx.translate(projectile.x, projectile.y);
+    ctx.rotate(ang);
+    ctx.fillRect(-projRadius * 2, -projRadius * 0.4, projRadius * 4, projRadius * 0.8);
+    ctx.strokeStyle = outerColor;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-projRadius * 2, -projRadius * 0.4, projRadius * 4, projRadius * 0.8);
+  } else if (shape === 'pellet') {
+    // 멀티탄 펠릿 (3개 작은 점이 모인 모양)
+    ctx.beginPath(); ctx.arc(projectile.x - 2, projectile.y - 1, projRadius * 0.75, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(projectile.x + 2, projectile.y + 1, projRadius * 0.75, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(projectile.x + 1, projectile.y - 2.5, projRadius * 0.65, 0, Math.PI * 2); ctx.fill();
+  } else if (shape === 'finned') {
+    // AP 화살촉 (T-90) — 비행 방향 따라 회전
+    const ang = Math.atan2(projectile.vy || 0, projectile.vx || 1);
+    ctx.translate(projectile.x, projectile.y);
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(projRadius * 1.8, 0);
+    ctx.lineTo(-projRadius * 1.2, -projRadius * 0.7);
+    ctx.lineTo(-projRadius * 1.2, projRadius * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    // 꼬리 핀 (양옆)
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(-projRadius * 1.3, -projRadius, projRadius * 0.7, projRadius * 0.5);
+    ctx.fillRect(-projRadius * 1.3, projRadius * 0.5, projRadius * 0.7, projRadius * 0.5);
+  } else {
+    // 기본 원형
+    ctx.beginPath(); ctx.arc(projectile.x, projectile.y, projRadius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = outerColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(projectile.x, projectile.y, projRadius + 3, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
 
-  ctx.shadowBlur = 0;
+  // T-90 우라늄탄 — 방사능 꼬리 (녹색 점 2개)
+  if (isRedBean && tt === 'T90' && projectile.vx != null) {
+    ctx.fillStyle = '#7BED9F';
+    ctx.beginPath();
+    ctx.arc(projectile.x - projectile.vx * 0.3, projectile.y - projectile.vy * 0.3, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(projectile.x - projectile.vx * 0.6, projectile.y - projectile.vy * 0.6, 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // ZTZ-99 샷건탄 — 작은 핀들 (탄두 주변)
+  if (isRedBean && tt === 'ZTZ99') {
+    ctx.fillStyle = '#444';
+    [0, 1, 2, 3].forEach(i => {
+      const a = (Math.PI / 2) * i;
+      ctx.fillRect(projectile.x + Math.cos(a) * 5 - 0.5, projectile.y + Math.sin(a) * 5 - 1, 1, 2);
+    });
+  }
 }
 
 function drawTrail() {
