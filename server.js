@@ -263,7 +263,7 @@ const TANK_TYPES = {
            hp: 115, range: 0.6, move: 120, speed: 1.0, moveSpeed: 1.3,
            desc: '샷건 에어버스트',
            ammo:  { kind: 'HE',     radius: 15, damage: 30 },
-           bomb2: { kind: 'shotgun', name: '샷건탄', damage: 20, radius: 30, range: 0.8, airBurst: 60 },
+           bomb2: { kind: 'shotgun', name: '화염탄', damage: 20, radius: 30, range: 0.8, airBurst: 60, fire: { radius: 40, dps: 1, duration: 10 } },
            ultimate: { kind: 'satellite_laser', name: '위성 레이저',   damage: 80, radius: 5,  terrainRadius: 30 } },
   LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪',
            hp: 100, range: 1.4, move: 120, speed: 1.0, moveSpeed: 1.0,
@@ -795,7 +795,7 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 
   room.explosions.push({ x, y, radius, time: Date.now() });
 
-  // 우라늄탄 — 폭발 후 오염 지역 생성 (러시아 T-90 bomb2)
+  // bomb2 폭발 후 DOT 지역 생성 (우라늄 = 방사능, 화염탄 = 불)
   if (!isSubExplosion && weaponType === 'redbean' && shooter) {
     const tankDef = getTankDef(shooter.tankType);
     if (tankDef.bomb2 && tankDef.bomb2.kind === 'uranium') {
@@ -808,6 +808,21 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
         startedAt: Date.now(),
         endsAt: Date.now() + (tankDef.bomb2.dotDuration || 8) * 1000,
         shooterId: shooter.id,
+        dotKind: 'uranium',
+      });
+    } else if (tankDef.bomb2 && tankDef.bomb2.fire) {
+      // 화염탄 (중국 ZTZ-99) — 폭발 후 불 지역 생성
+      if (!room.radiationZones) room.radiationZones = [];
+      const fireY = getTerrainY(room.terrain, x);  // 불은 지형 위에
+      room.radiationZones.push({
+        id: room.nextZoneId++,
+        x, y: fireY,
+        radius: tankDef.bomb2.fire.radius,
+        dps: tankDef.bomb2.fire.dps,
+        startedAt: Date.now(),
+        endsAt: Date.now() + tankDef.bomb2.fire.duration * 1000,
+        shooterId: shooter.id,
+        dotKind: 'fire',
       });
     }
   }
