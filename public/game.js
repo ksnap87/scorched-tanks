@@ -483,6 +483,13 @@ socket.on('gameState', (data) => {
     updateRoomCodeDisplay();
   }
 
+  // 동적 맵 너비 (팀전 = 2배). canvas-wrap 비율 유지, max-width: 100vw 로 화면에 비례 축소
+  if (state.mapWidth && canvas.width !== state.mapWidth) {
+    canvas.width = state.mapWidth;
+    const wrap = document.querySelector('.canvas-wrap');
+    if (wrap) wrap.style.width = state.mapWidth + 'px';
+  }
+
   // 본인 탱크 선택 동기화
   if (state.players && myId && state.players[myId] && state.players[myId].tankType) {
     if (selectedTank !== state.players[myId].tankType) {
@@ -1391,6 +1398,7 @@ function render() {
   drawTanks();
   drawGuidedTrajectory();
   drawProjectile();
+  drawLaserBeams();          // Leopard 2 직선 레이저
   drawAirstrike();
   drawParticles();
   drawTrail();
@@ -1399,6 +1407,54 @@ function render() {
   updateParticles();
   updateClouds();
   updateWeatherParticles();
+}
+
+// === Leopard 2 직선 레이저 빔 (지형 관통) ===
+function drawLaserBeams() {
+  if (!state || !state.laserBeams || state.laserBeams.length === 0) return;
+  const now = Date.now();
+  state.laserBeams.forEach(b => {
+    const elapsed = now - b.startedAt;
+    const lifeT = Math.max(0, 1 - elapsed / b.duration);
+    if (lifeT <= 0) return;
+    ctx.save();
+    // 외곽 글로우 (굵게)
+    ctx.shadowColor = b.color || '#7BD3FF';
+    ctx.shadowBlur = 24;
+    ctx.strokeStyle = `rgba(123, 211, 255, ${0.45 * lifeT})`;
+    ctx.lineWidth = (b.width || 8) * 2.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(b.x1, b.y1);
+    ctx.lineTo(b.x2, b.y2);
+    ctx.stroke();
+    // 메인 빔 (밝은 코어)
+    ctx.shadowBlur = 16;
+    ctx.strokeStyle = `rgba(180, 230, 255, ${0.85 * lifeT})`;
+    ctx.lineWidth = (b.width || 8);
+    ctx.beginPath();
+    ctx.moveTo(b.x1, b.y1);
+    ctx.lineTo(b.x2, b.y2);
+    ctx.stroke();
+    // 중심 흰 코어 (얇게)
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.95 * lifeT})`;
+    ctx.lineWidth = Math.max(2, (b.width || 8) * 0.35);
+    ctx.beginPath();
+    ctx.moveTo(b.x1, b.y1);
+    ctx.lineTo(b.x2, b.y2);
+    ctx.stroke();
+    // 시작 / 끝 점 글로우
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = `rgba(180, 230, 255, ${lifeT})`;
+    ctx.beginPath();
+    ctx.arc(b.x1, b.y1, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(b.x2, b.y2, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
 }
 
 function drawItemBoxes() {
@@ -1476,8 +1532,9 @@ function drawItemBoxes() {
       ctx.restore();
     }
 
-    // === 패러슈트 (낙하 중에만, 안착 후엔 사라짐) ===
-    if (dropT < 1) {
+    // === 패러슈트 (laser/nuke 는 공중 아이템 — 안착 후에도 매달림 유지. repair 는 지면 안착 후 사라짐) ===
+    const keepChute = (type === 'laser' || type === 'nuke');
+    if (dropT < 1 || keepChute) {
       ctx.fillStyle = chuteCol;
       ctx.beginPath();
       ctx.arc(x, y - 32, 18, Math.PI, 0);

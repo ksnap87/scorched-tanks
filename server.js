@@ -267,9 +267,9 @@ const TANK_TYPES = {
            ultimate: { kind: 'satellite_laser', name: '위성 레이저',   damage: 80, radius: 5,  terrainRadius: 30 } },
   LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪',
            hp: 100, range: 1.4, move: 120, speed: 1.0, moveSpeed: 1.0,
-           desc: '장거리 APFSDS',
+           desc: '장거리 APFSDS · 레이저',
            ammo:  { kind: 'APFSDS', radius: 22, damage: 44, pierce: 1.25 },
-           bomb2: { kind: 'redbean', name: '빨콩',  damage: 60, radius: 5,  range: 1.4 },
+           bomb2: { kind: 'laser_beam', name: '레이저', damage: 50, range: 290, beamWidth: 8, terrainDig: 18 },
            ultimate: { kind: 'stuka_dive',       name: 'Stuka 급강하',  damage: 50, radius: 15, terrainRadius: 15 } },
 };
 const DEFAULT_TANK = 'K2';
@@ -312,18 +312,20 @@ function applyWeatherImmediate(room) {
   const w = room.weather;
   if (!w) return;
   switch (w.kind) {
-    case 'typhoon':
+    case 'typhoon': {
       // 모든 탱크 랜덤 ±20px (요청 명세)
+      const mw = room.mapWidth || CANVAS_WIDTH;
       Object.values(room.players).forEach(p => {
         if (!p.alive) return;
         const dx = (Math.random() - 0.5) * 40;
         let nx = p.x + dx;
-        if (nx < 0) nx += CANVAS_WIDTH;
-        else if (nx >= CANVAS_WIDTH) nx -= CANVAS_WIDTH;
+        if (nx < 0) nx += mw;
+        else if (nx >= mw) nx -= mw;
         p.x = nx;
         p.y = getTerrainY(room.terrain, p.x) - TANK_HEIGHT / 2;
       });
       break;
+    }
     case 'snow':
       // 모든 탱크 -5 HP (러시아 T-90 면역)
       Object.values(room.players).forEach(p => {
@@ -482,10 +484,11 @@ function destroyRoom(roomId) {
   delete nextTurnFlags[roomId];
 }
 
-function generateTerrain(continent = 'KR') {
+function generateTerrain(continent = 'KR', mapWidth = CANVAS_WIDTH) {
   const terrain = [];
   const points = [];
-  const numPoints = 8;
+  // 맵이 넓으면 포인트도 더 (지형 다양성 유지)
+  const numPoints = mapWidth > CANVAS_WIDTH * 1.5 ? 14 : 8;
 
   // 대륙별 지형 특성
   let yBase = 0.35, yRange = 0.30, centerHigh = false;
@@ -499,7 +502,7 @@ function generateTerrain(continent = 'KR') {
   }
 
   for (let i = 0; i <= numPoints; i++) {
-    const x = (i / numPoints) * CANVAS_WIDTH;
+    const x = (i / numPoints) * mapWidth;
     let y = CANVAS_HEIGHT * yBase + Math.random() * CANVAS_HEIGHT * yRange;
     if (centerHigh) {
       const centerDist = Math.abs(i - numPoints / 2) / (numPoints / 2);
@@ -508,8 +511,8 @@ function generateTerrain(continent = 'KR') {
     points.push({ x, y });
   }
 
-  for (let x = 0; x < CANVAS_WIDTH; x += TERRAIN_RESOLUTION) {
-    const t = x / CANVAS_WIDTH;
+  for (let x = 0; x < mapWidth; x += TERRAIN_RESOLUTION) {
+    const t = x / mapWidth;
     const idx = Math.floor(t * numPoints);
     const localT = (t * numPoints) - idx;
 
@@ -543,26 +546,63 @@ function placeTanks(room) {
   const numPlayers = playerIds.length;
   if (numPlayers === 0) return;
 
+  const mw = room.mapWidth || CANVAS_WIDTH;
   const margin = 60;
-  const spacing = (CANVAS_WIDTH - margin * 2) / (numPlayers + 1);
+  const spacing = (mw - margin * 2) / (numPlayers + 1);
 
   const slots = [];
   for (let i = 0; i < numPlayers; i++) slots.push(margin + spacing * (i + 1));
-  for (let i = slots.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [slots[i], slots[j]] = [slots[j], slots[i]];
+
+  // 팀전: 3가지 배치 패턴 중 랜덤 (번갈아 / 동서분리 / 역 동서분리). 가끔 몰림 OK.
+  // 일반: 완전 셔플.
+  let orderedIds;
+  if (room.teamMode) {
+    const teamA = playerIds.filter(id => room.players[id].team === 'A');
+    const teamB = playerIds.filter(id => room.players[id].team === 'B');
+    const noTeam = playerIds.filter(id => !room.players[id].team);
+    const pattern = Math.floor(Math.random() * 3);  // 0=interleave, 1=A서-B동, 2=B서-A동
+    if (pattern === 0) {
+      // 번갈아: A B A B A B
+      orderedIds = [];
+      const maxLen = Math.max(teamA.length, teamB.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (teamA[i]) orderedIds.push(teamA[i]);
+        if (teamB[i]) orderedIds.push(teamB[i]);
+      }
+    } else if (pattern === 1) {
+      // A 서쪽, B 동쪽
+      orderedIds = [...teamA, ...teamB];
+    } else {
+      // B 서쪽, A 동쪽
+      orderedIds = [...teamB, ...teamA];
+    }
+    orderedIds.push(...noTeam);
+  } else {
+    orderedIds = playerIds.slice();
+    for (let i = slots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slots[i], slots[j]] = [slots[j], slots[i]];
+    }
   }
 
-  playerIds.forEach((id, i) => {
-    let trialX = Math.max(margin, Math.min(CANVAS_WIDTH - margin, slots[i] + (Math.random() - 0.5) * Math.min(spacing * 0.5, 80)));
-    // 가파른 언덕 회피 — 좌우 30px 기울기가 작은 곳으로 이동
+  orderedIds.forEach((id, i) => {
+    // 팀전: 흔들림 없이 슬롯 그대로 (랜덤하지 않게). 일반: 살짝 흔들림.
+    const jitter = room.teamMode
+      ? 0
+      : (Math.random() - 0.5) * Math.min(spacing * 0.5, 80);
+    let trialX = Math.max(margin, Math.min(mw - margin, slots[i] + jitter));
+    // 가파른 언덕 회피 — 슬롯 근처에서만 미세 조정 (팀전 순서 유지)
+    const maxNudge = room.teamMode ? Math.min(spacing * 0.35, 40) : 60;
     for (let tryN = 0; tryN < 10; tryN++) {
       const yL = getTerrainY(room.terrain, Math.max(0, trialX - 18));
-      const yR = getTerrainY(room.terrain, Math.min(CANVAS_WIDTH - 1, trialX + 18));
+      const yR = getTerrainY(room.terrain, Math.min(mw - 1, trialX + 18));
       const tiltAbs = Math.abs(Math.atan2(yR - yL, 36));
       if (tiltAbs < 0.45) break; // 약 26도 미만이면 OK
-      trialX += (Math.random() - 0.5) * 60;
-      trialX = Math.max(margin, Math.min(CANVAS_WIDTH - margin, trialX));
+      // 슬롯 중심에서 너무 멀어지지 않게 (인접 슬롯 침범 방지)
+      const delta = (Math.random() - 0.5) * 24;
+      const candidate = trialX + delta;
+      if (Math.abs(candidate - slots[i]) <= maxNudge) trialX = candidate;
+      trialX = Math.max(margin, Math.min(mw - margin, trialX));
     }
     const x = trialX;
     const y = getTerrainY(room.terrain, x);
@@ -629,7 +669,9 @@ function startNewRound(room) {
   room.continent = pickContinent(room);
   room.weather = null;
   room.weatherUsedThisGame = false;
-  room.terrain = generateTerrain(room.continent);
+  // 팀전이면 맵 2배
+  room.mapWidth = room.teamMode ? CANVAS_WIDTH * 2 : CANVAS_WIDTH;
+  room.terrain = generateTerrain(room.continent, room.mapWidth);
   room.projectile = null;
   room.explosions = [];
   room.wind = (Math.random() - 0.5) * WIND_CHANGE_RANGE * 2;
@@ -662,10 +704,8 @@ function spawnItemBox(room) {
     room.itemSpawnTimer = setTimeout(() => spawnItemBox(room), ITEM_BOX_RESPAWN);
     return;
   }
-  const x = 220 + Math.random() * (CANVAS_WIDTH - 440);
-  // 지형 표면 위에 안착하도록 targetY 계산 (박스 반높이 14px만큼 위)
-  const groundY = getTerrainY(room.terrain, x);
-  const targetY = groundY - 14;
+  const mw = room.mapWidth || CANVAS_WIDTH;
+  const x = 220 + Math.random() * (mw - 440);
   // 박스 타입 — 8턴 이전엔 laser/repair만, 8턴 이후 nuke 일정 확률로 등장
   const turnsPassed = room.turnsTotal || 0;
   const r = Math.random();
@@ -673,10 +713,18 @@ function spawnItemBox(room) {
   if (turnsPassed >= 8 && r >= 0.85) type = 'nuke';        // 15% (8턴 이후만)
   else if (r < 0.55) type = 'laser';
   else type = 'repair';
+  // 타입별 y: 레이저/NUKE 는 공중에 떠있는 아이템, REPAIR(수리키트) 는 지면에 떨어진 아이템
+  let targetY;
+  if (type === 'repair') {
+    const groundY = getTerrainY(room.terrain, x);
+    targetY = groundY - 14;       // 지면 표면 (박스 반높이만큼 위)
+  } else {
+    targetY = 110 + Math.random() * 120;   // 공중 (laser/nuke 패러슈트)
+  }
   room.itemBoxes.push({
     id: room.nextItemBoxId++,
     x,
-    y: targetY,                  // 최종 안착 y (지면 위)
+    y: targetY,                  // 최종 안착 y
     targetY,                     // 클라 애니메이션용
     type,
     wobblePhase: Math.random() * Math.PI * 2,
@@ -1021,6 +1069,107 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   }
 }
 
+// Leopard 2 — 직선 레이저 빔 발사. 지형 관통 (땅 깎임) + 닿는 모든 탱크에 damage.
+function fireLaserBeam(room, shooter, bomb2Spec) {
+  const mw = room.mapWidth || CANVAS_WIDTH;
+  // 발사 시점의 탱크 기울기 (effective angle)
+  let tiltDeg = 0;
+  if (room.terrain && shooter.siegeMode !== 'sieged') {
+    const yL = getTerrainY(room.terrain, shooter.x - 16);
+    const yR = getTerrainY(room.terrain, shooter.x + 16);
+    const tr = Math.atan2(yR - yL, 32);
+    if (Number.isFinite(tr)) tiltDeg = Math.max(-40, Math.min(40, tr * 180 / Math.PI));
+  }
+  const effAngle = (shooter.angle || 90) + tiltDeg;
+  const rad = effAngle * Math.PI / 180;
+  // 시작점 (포구) — 포신 끝
+  const barrelLen = (BARREL_LEN_BY_TANK[shooter.tankType] || 22) * 1.0;
+  const turretY = shooter.y - 4;
+  const startX = shooter.x + Math.cos(rad) * barrelLen;
+  const startY = turretY - Math.sin(rad) * barrelLen;
+  // 방향 단위벡터 (server: 0=오른쪽, 90=위 → dx=cos, dy=-sin)
+  const dx = Math.cos(rad);
+  const dy = -Math.sin(rad);
+  const range = bomb2Spec.range || 290;
+  const damage = bomb2Spec.damage || 50;
+  const beamWidth = bomb2Spec.beamWidth || 8;
+  const terrainDig = bomb2Spec.terrainDig || 18;
+  // 빔 따라 스텝 진행 (4px 간격)
+  const STEP = 4;
+  let endX = startX, endY = startY;
+  const hitPlayerIds = new Set();
+  for (let dist = 0; dist <= range; dist += STEP) {
+    const px = startX + dx * dist;
+    const py = startY + dy * dist;
+    // 맵 wrap
+    let pxw = px;
+    if (pxw < 0) pxw += mw;
+    else if (pxw >= mw) pxw -= mw;
+    endX = pxw;
+    endY = py;
+    // 지형 깎기 (관통) — terrain[idx] += terrainDig (y 가 커지면 지형이 내려가는 = 파괴)
+    const idx = Math.floor(pxw / TERRAIN_RESOLUTION);
+    if (idx >= 0 && idx < room.terrain.length) {
+      // 빔 굵기 만큼 좌우 인덱스도 깎음
+      const halfIdx = Math.ceil((beamWidth / 2) / TERRAIN_RESOLUTION);
+      for (let k = -halfIdx; k <= halfIdx; k++) {
+        const j = idx + k;
+        if (j >= 0 && j < room.terrain.length) {
+          // 빔이 지형 안에 있어야 깎음 (y >= terrain[j] 일 때만)
+          if (py >= room.terrain[j] - beamWidth / 2) {
+            room.terrain[j] = Math.min(CANVAS_HEIGHT - 5, room.terrain[j] + terrainDig * 0.18);
+          }
+        }
+      }
+    }
+    // 탱크 hit (이미 hit 한 적은 제외 — 빔이 관통하면서 같은 탱크 여러 번 hit 방지)
+    for (const id of Object.keys(room.players)) {
+      const target = room.players[id];
+      if (!target.alive) continue;
+      if (hitPlayerIds.has(id)) continue;
+      const tdx = target.x - pxw;
+      const tdy = target.y - py;
+      const sq = tdx * tdx + tdy * tdy;
+      const hitR = (beamWidth / 2) + 16;
+      if (sq < hitR * hitR) {
+        hitPlayerIds.add(id);
+        const before = target.hp;
+        target.hp = Math.max(0, target.hp - damage);
+        if (shooter && shooter.id !== id) {
+          shooter.damageDealt = (shooter.damageDealt || 0) + (before - target.hp);
+        }
+        if (target.hp <= 0) {
+          target.alive = false;
+          if (shooter && shooter.id !== id) {
+            shooter.kills = (shooter.kills || 0) + 1;
+            if (!room.scores[shooter.id]) room.scores[shooter.id] = 0;
+            room.scores[shooter.id] += 50;
+          }
+        }
+      }
+    }
+  }
+  // 빔 시각 이펙트 (클라가 그릴 정보) — 250ms 표시
+  if (!room.laserBeams) room.laserBeams = [];
+  room.laserBeams.push({
+    id: (room.nextLaserBeamId = (room.nextLaserBeamId || 0) + 1),
+    x1: startX, y1: startY, x2: endX, y2: endY,
+    width: beamWidth,
+    color: '#7BD3FF',
+    startedAt: Date.now(),
+    duration: 280,
+  });
+  // 만료 cleanup
+  setTimeout(() => {
+    if (room.laserBeams) {
+      room.laserBeams = room.laserBeams.filter(b => Date.now() - b.startedAt < b.duration);
+      broadcastState(room);
+    }
+  }, 320);
+  if (room.teamMode) checkTeamGameEnd(room);
+  broadcastState(room);
+}
+
 // 탱크별 포신 길이 (drawTanks의 barrel과 일치)
 const BARREL_LEN_BY_TANK = { K2: 26, M1A2: 24, T90: 22, LEO2: 28, T10: 20, ZTZ99: 22 };
 
@@ -1119,6 +1268,41 @@ function startFire(room, player, weaponType, useDouble) {
     }
   }
 
+  // === Leopard 2 레이저 빔 (bomb2.kind === 'laser_beam') ===
+  // 일직선으로 발사, 지형 관통 (땅 깎임), 닿는 모든 탱크 데미지. simulateProjectile 안 거침.
+  if (actualWeapon === 'redbean') {
+    const tankDef = getTankDef(player.tankType);
+    if (tankDef.bomb2 && tankDef.bomb2.kind === 'laser_beam') {
+      fireLaserBeam(room, player, tankDef.bomb2);
+      // 발사 직후 종료 처리
+      if (isFirstOfDouble) {
+        setTimeout(() => {
+          if (room.phase !== 'playing') return;
+          if (!room.teamMode && room.currentTurn !== player.id) return;
+          if (!player.alive) {
+            player.doubleShotPending = false;
+            if (!room.teamMode) nextTurn(room);
+            return;
+          }
+          const ok = startFire(room, player, weaponType, false);
+          if (!ok) {
+            player.doubleShotPending = false;
+            if (!room.teamMode) setTimeout(() => nextTurn(room), 800);
+          }
+        }, 700);
+      } else {
+        if (player.doubleShotPending) player.doubleShotPending = false;
+        if (room.teamMode) {
+          player.cooldownUntil = Date.now() + getCooldownMs(player, actualWeapon);
+          checkTeamGameEnd(room);
+        } else {
+          setTimeout(() => nextTurn(room), 1000);
+        }
+      }
+      return true;
+    }
+  }
+
   const proj = simulateProjectile(player.x, player.y, player.angle, player.power, player, room);
   proj.type = actualWeapon;
   proj.shooterId = player.id;
@@ -1179,15 +1363,16 @@ function startFire(room, player, weaponType, useDouble) {
       let detonateX = px;
       let detonateY = py;
       if (ult.kind === 'kamikaze') {
-        const fromLeft = px < CANVAS_WIDTH / 2;
-        const startX = fromLeft ? -60 : CANVAS_WIDTH + 60;
+        const mw = room.mapWidth || CANVAS_WIDTH;
+        const fromLeft = px < mw / 2;
+        const startX = fromLeft ? -60 : mw + 60;
         const startY = 40;
         const steps = 120;
         for (let i = 1; i <= steps; i++) {
           const t = i / steps;
           const cx = startX + (px - startX) * t;
           const cy = startY + (py - startY) * (t * t); // 가속 곡선 (drawKamikaze와 동일)
-          if (cx < 0 || cx > CANVAS_WIDTH) continue;
+          if (cx < 0 || cx > mw) continue;
           const tY = getTerrainY(room.terrain, cx);
           if (cy >= tY) {
             detonateX = cx;
@@ -1246,8 +1431,9 @@ function startFire(room, player, weaponType, useDouble) {
     p.y += p.vy;
 
     // 좌우 wrap (랩어라운드)
-    if (p.x < 0) p.x += CANVAS_WIDTH;
-    else if (p.x >= CANVAS_WIDTH) p.x -= CANVAS_WIDTH;
+    const _mw = room.mapWidth || CANVAS_WIDTH;
+    if (p.x < 0) p.x += _mw;
+    else if (p.x >= _mw) p.x -= _mw;
 
     const px = p.x;
     const py = p.y;
@@ -1444,6 +1630,8 @@ function broadcastState(room) {
     weather: room.weather,
     turnsTotal: room.turnsTotal || 0,
     teamMode: !!room.teamMode,
+    mapWidth: room.mapWidth || CANVAS_WIDTH,
+    laserBeams: room.laserBeams || [],
   });
 }
 
@@ -1713,8 +1901,9 @@ io.on('connection', (socket) => {
     const desiredStep = Math.min(5 * moveSpeedMul, player.moveBudget);
     let newX = player.x + dir * desiredStep;
     // 랩어라운드 — 좌우 끝 연결
-    if (newX < 0) newX += CANVAS_WIDTH;
-    else if (newX >= CANVAS_WIDTH) newX -= CANVAS_WIDTH;
+    const mw = r.mapWidth || CANVAS_WIDTH;
+    if (newX < 0) newX += mw;
+    else if (newX >= mw) newX -= mw;
     const actualStep = desiredStep;
     if (actualStep === 0) return;
 
@@ -1752,8 +1941,9 @@ io.on('connection', (socket) => {
     const dir = direction < 0 ? -1 : 1;
     const desiredStep = Math.min(requestedDist, player.moveBudget);
     let newX = player.x + dir * desiredStep;
-    if (newX < 0) newX += CANVAS_WIDTH;
-    else if (newX >= CANVAS_WIDTH) newX -= CANVAS_WIDTH;
+    const mw = r.mapWidth || CANVAS_WIDTH;
+    if (newX < 0) newX += mw;
+    else if (newX >= mw) newX -= mw;
     const actualStep = desiredStep;
     if (actualStep === 0) return;
 
