@@ -896,10 +896,35 @@ function startFire(room, player, weaponType, useDouble) {
     if (proj.type === 'laser_guided') {
       const shooterTankDef = getTankDef(player.tankType);
       const ult = shooterTankDef.ultimate || { kind: 'default' };
+
+      // 실제 폭발 좌표 — 카미카제는 도중 지형 충돌 시 그 지점
+      let detonateX = px;
+      let detonateY = py;
+      if (ult.kind === 'kamikaze') {
+        const fromLeft = px < CANVAS_WIDTH / 2;
+        const startX = fromLeft ? -60 : CANVAS_WIDTH + 60;
+        const startY = 40;
+        const steps = 120;
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const cx = startX + (px - startX) * t;
+          const cy = startY + (py - startY) * (t * t); // 가속 곡선 (drawKamikaze와 동일)
+          if (cx < 0 || cx > CANVAS_WIDTH) continue;
+          const tY = getTerrainY(room.terrain, cx);
+          if (cy >= tY) {
+            detonateX = cx;
+            detonateY = tY;
+            break;
+          }
+        }
+      }
+
       room.airstrike = {
-        targetX: px,
-        targetY: py,
-        originX: player.x,        // 본인 탱크 X (한국 필살기 군인이 여기서 등장)
+        targetX: detonateX,
+        targetY: detonateY,
+        originalTargetX: px,
+        originalTargetY: py,
+        originX: player.x,
         originY: player.y,
         startTime: Date.now(),
         incomingMs: AIRSTRIKE_INCOMING_MS,
@@ -912,7 +937,7 @@ function startFire(room, player, weaponType, useDouble) {
       };
       broadcastState(room);
       setTimeout(() => {
-        applyExplosion(room, px, py, 'laser_guided', null, player);
+        applyExplosion(room, detonateX, detonateY, 'laser_guided', null, player);
         if (room.airstrike) room.airstrike.phase = 'bombing';
         broadcastState(room);
       }, AIRSTRIKE_INCOMING_MS);
