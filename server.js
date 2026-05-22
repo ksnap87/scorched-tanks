@@ -371,11 +371,73 @@ function normalizeRoomId(raw) {
   return cleaned || null;
 }
 
+// === Cooldown (장전속도) — 데미지와 반비례 (강한 무기일수록 길게) ===
+function getCooldownMs(player, weaponType) {
+  const tankDef = getTankDef(player.tankType);
+  let baseCd = 2000;
+  let dmg = 30;
+  if (weaponType === 'normal') {
+    baseCd = 1800;
+    dmg = (tankDef.ammo && tankDef.ammo.damage) || 30;
+  } else if (weaponType === 'redbean') {
+    baseCd = 2800;
+    dmg = (tankDef.bomb2 && tankDef.bomb2.damage) || 30;
+  } else if (weaponType === 'laser_guided') {
+    baseCd = 5000;
+    dmg = (tankDef.ultimate && tankDef.ultimate.damage) || 60;
+  } else if (weaponType === 'nuke') {
+    baseCd = 8000;
+    dmg = 200;
+  }
+  let cd = baseCd + dmg * 60;
+  if (player.siegeMode === 'sieged') cd *= 0.8;       // 시즈모드 +20% (cd -20%)
+  return cd;
+}
+
+// === Teams ===
+function assignTeams(room) {
+  const ids = Object.keys(room.players);
+  // 입장 순서대로 A, B 번갈아
+  ids.forEach((id, i) => {
+    room.players[id].team = i % 2 === 0 ? 'A' : 'B';
+  });
+}
+
+// 팀전 — 한 팀 전원 사망 시 게임 종료
+function checkTeamGameEnd(room) {
+  if (!room.teamMode || room.phase !== 'playing') return;
+  const aliveA = Object.values(room.players).filter(p => p.team === 'A' && p.alive).length;
+  const aliveB = Object.values(room.players).filter(p => p.team === 'B' && p.alive).length;
+  if (aliveA > 0 && aliveB > 0) return;
+  // 한 팀 전원 사망
+  const winningTeam = aliveA > 0 ? 'A' : (aliveB > 0 ? 'B' : null);
+  // 승리 팀 player에 점수 +100
+  if (winningTeam) {
+    Object.values(room.players).forEach(p => {
+      if (p.team === winningTeam) {
+        if (!room.scores[p.id]) room.scores[p.id] = 0;
+        room.scores[p.id] += 100;
+      }
+    });
+  }
+  if (room.itemSpawnTimer) { clearTimeout(room.itemSpawnTimer); room.itemSpawnTimer = null; }
+  room.itemBoxes = [];
+  room.airstrike = null;
+  room.phase = 'gameover';
+  broadcastState(room);
+  persistMatchResult(room, null).catch(e => console.error('match save error', e));
+  if (room.lobbyReturnTimer) clearTimeout(room.lobbyReturnTimer);
+  room.gameoverEndsAt = Date.now() + 5000;
+  io.to(room.id).emit('gameoverInfo', { endsAt: room.gameoverEndsAt, winningTeam });
+  room.lobbyReturnTimer = setTimeout(() => resetToLobby(room), 5000);
+}
+
 function createRoom(id) {
   return {
     id,
     host: null,
     phase: 'lobby',
+    teamMode: false,
     players: {},
     terrain: [],
     currentTurn: null,
@@ -637,6 +699,11 @@ function nextTurn(room) {
 }
 
 function nextTurnInner(room) {
+  // 팀전(실시간) 모드는 turn 시스템 사용 X — 즉시 return
+  if (room.teamMode) {
+    checkTeamGameEnd(room);
+    return;
+  }
   const alivePlayers = Object.keys(room.players).filter(
     id => room.players[id].alive
   );
@@ -878,6 +945,9 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 
   room.explosions.push({ x, y, radius, time: Date.now() });
 
+  // 팀전 — 한 팀 전원 사망 체크 (즉시)
+  if (!isSubExplosion && room.teamMode) checkTeamGameEnd(room);
+
   // bomb2 폭발 후 DOT 지역 생성 (우라늄 = 방사능, 화염탄 = 불)
   if (!isSubExplosion && weaponType === 'redbean' && shooter) {
     const tankDef = getTankDef(shooter.tankType);
@@ -957,8 +1027,17 @@ function simulateProjectile(startX, startY, angle, power, shooter) {
 function startFire(room, player, weaponType, useDouble) {
   if (!player) return false;
   if (room.phase !== 'playing') return false;
-  if (room.currentTurn !== player.id) return false;
-  if (room.projectile) return false;
+  // 팀전: currentTurn 무시 (실시간) + cooldown 체크
+  if (room.teamMode) {
+    if (Date.now() < (player.cooldownUntil || 0)) return false;
+    // 팀전에서 동시 발사 — projectile 1개 제한 풀고 player별로 (단순화 위해 일단 1개)
+    if (room.projectile) return false;
+    // 시즈모드 변환 중엔 발사 X
+    if (player.siegeMode === 'transforming' || player.siegeMode === 'untransforming') return false;
+  } else {
+    if (room.currentTurn !== player.id) return false;
+    if (room.projectile) return false;
+  }
   if (!player.alive) return false;
 
   if (weaponType === 'laser_guided' || weaponType === 'nuke') useDouble = false;
@@ -1049,7 +1128,13 @@ function startFire(room, player, weaponType, useDouble) {
       }, 700);
     } else {
       if (player.doubleShotPending) player.doubleShotPending = false;
-      setTimeout(() => nextTurn(room), 1000);
+      // 팀전(실시간): cooldown만 적용, turn 진행 X
+      if (room.teamMode) {
+        player.cooldownUntil = Date.now() + getCooldownMs(player, actualWeapon);
+        checkTeamGameEnd(room);
+      } else {
+        setTimeout(() => nextTurn(room), 1000);
+      }
     }
   };
 
@@ -1322,6 +1407,7 @@ function broadcastState(room) {
     continent: room.continent || 'KR',
     weather: room.weather,
     turnsTotal: room.turnsTotal || 0,
+    teamMode: !!room.teamMode,
   });
 }
 
@@ -1420,8 +1506,13 @@ io.on('connection', (socket) => {
     doubleShotPending: false,
     laserShots: 0,
     repairKits: 0,
+    nukeShots: 0,
     kills: 0,
     damageDealt: 0,
+    team: null,                 // 팀전 시 'A' | 'B'
+    cooldownUntil: 0,           // 발사 가능 시각 (ms)
+    siegeMode: 'idle',          // 'idle' | 'transforming' | 'sieged' | 'untransforming'
+    siegeChangedAt: 0,
   };
 
   if (!room.scores[socket.id]) {
@@ -1448,6 +1539,50 @@ io.on('connection', (socket) => {
       broadcastState(r);
       if (oldName !== cleaned) systemChat(r, `${oldName} → ${cleaned}`);
     }
+  });
+
+  // 호스트가 팀전 모드 토글 (대기방에서만)
+  socket.on('setTeamMode', (enabled) => {
+    const r = rooms[socket.data.roomId];
+    if (!r) return;
+    if (socket.id !== r.host) return;
+    if (r.phase !== 'lobby') return;
+    r.teamMode = !!enabled;
+    if (r.teamMode) assignTeams(r);
+    else Object.values(r.players).forEach(p => { p.team = null; });
+    broadcastState(r);
+  });
+
+  // 시즈모드 토글 (팀전 + 실시간 모드 전용)
+  socket.on('toggleSiege', () => {
+    const r = rooms[socket.data.roomId];
+    if (!r) return;
+    if (r.phase !== 'playing') return;
+    if (!r.teamMode) return;
+    const player = r.players[socket.id];
+    if (!player || !player.alive) return;
+    const now = Date.now();
+    if (player.siegeMode === 'idle') {
+      player.siegeMode = 'transforming';
+      player.siegeChangedAt = now;
+      setTimeout(() => {
+        if (player.siegeMode === 'transforming') {
+          player.siegeMode = 'sieged';
+          if (player.power < 50) player.power = 50;
+          broadcastState(r);
+        }
+      }, 4000);
+    } else if (player.siegeMode === 'sieged') {
+      player.siegeMode = 'untransforming';
+      player.siegeChangedAt = now;
+      setTimeout(() => {
+        if (player.siegeMode === 'untransforming') {
+          player.siegeMode = 'idle';
+          broadcastState(r);
+        }
+      }, 4000);
+    }
+    broadcastState(r);
   });
 
   socket.on('startGame', () => {
@@ -1493,8 +1628,14 @@ io.on('connection', (socket) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
     if (r.phase !== 'playing') return;
-    if (r.currentTurn !== socket.id) return;
-    if (r.projectile) return;
+    // 팀전: currentTurn 무시 (실시간), 시즈모드 시 이동 X
+    if (r.teamMode) {
+      const p0 = r.players[socket.id];
+      if (p0 && p0.siegeMode !== 'idle') return;
+    } else {
+      if (r.currentTurn !== socket.id) return;
+      if (r.projectile) return;
+    }
     const player = r.players[socket.id];
     if (!player || !player.alive) return;
     if (player.moveBudget <= 0) return;
@@ -1531,8 +1672,13 @@ io.on('connection', (socket) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
     if (r.phase !== 'playing') return;
-    if (r.currentTurn !== socket.id) return;
-    if (r.projectile) return;
+    if (r.teamMode) {
+      const p0 = r.players[socket.id];
+      if (p0 && p0.siegeMode !== 'idle') return;
+    } else {
+      if (r.currentTurn !== socket.id) return;
+      if (r.projectile) return;
+    }
     const player = r.players[socket.id];
     if (!player || !player.alive) return;
     if (player.moveBudget <= 0) return;

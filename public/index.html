@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -61,6 +61,13 @@
           <div class="tank-select">
             <h3>SELECT TANK</h3>
             <div class="tank-grid" id="tankGrid"></div>
+          </div>
+
+          <div class="team-mode-toggle">
+            <label>
+              <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
+              <span>⚔️ 팀전 모드 (실시간 + 장전속도 + 시즈모드)</span>
+            </label>
           </div>
 
           <button class="btn btn-start" id="btnStart" onclick="startGame()" disabled>
@@ -155,6 +162,9 @@
       <button class="btn-repair" id="btnRepair" onclick="useRepair()">
         🔧 REPAIR × <span id="repairCount">1</span>
       </button>
+      <button class="btn-siege" id="btnSiege" onclick="toggleSiege()" style="display:none;">
+        🛡 SIEGE
+      </button>
       <button class="btn-fire" id="btnFire" onclick="fire()">🔥 FIRE</button>
     </div>
 
@@ -236,6 +246,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=16"></script>
+  <script src="game.js?v=17"></script>
 </body>
 </html>

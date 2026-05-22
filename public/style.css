@@ -1086,6 +1086,53 @@ canvas {
   50% { transform: scale(1.04); }
 }
 
+/* Team mode toggle (lobby) */
+.team-mode-toggle {
+  margin: 0.6rem 0 1rem;
+  padding: 8px 12px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 10px;
+  text-align: center;
+}
+.team-mode-toggle label {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  color: #ccc;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.team-mode-toggle input { width: 16px; height: 16px; accent-color: #A855F7; }
+
+/* Siege mode button */
+.btn-siege {
+  pointer-events: auto;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  color: #ddc;
+  font-family: 'Orbitron', monospace;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 1.5px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-siege:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.32);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.45);
+}
+.btn-siege.active {
+  background: linear-gradient(135deg, #A855F7, #FF6B81);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.6);
+}
+.btn-siege:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* Repair button */
 .btn-repair {
   pointer-events: auto;

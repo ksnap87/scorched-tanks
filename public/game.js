@@ -797,8 +797,25 @@ function updateHUD() {
 
 function updateControls() {
   if (!state) return;
-  const isMyTurn = state.currentTurn === myId;
   const me = state.players[myId];
+  // 팀전(실시간)에서는 항상 자기 차례 (cooldown 으로 제한)
+  const teamMode = !!state.teamMode;
+  const now = Date.now();
+  const onCooldown = teamMode && me && (now < (me.cooldownUntil || 0));
+  const inSiegeBusy = teamMode && me && (me.siegeMode === 'transforming' || me.siegeMode === 'untransforming');
+  const isMyTurn = teamMode ? (!!me && me.alive && !inSiegeBusy && !onCooldown) : (state.currentTurn === myId);
+
+  // 시즈 버튼 표시 (팀전 모드만)
+  const btnSiege = document.getElementById('btnSiege');
+  if (btnSiege) {
+    btnSiege.style.display = teamMode ? '' : 'none';
+    if (me) {
+      const sm = me.siegeMode || 'idle';
+      btnSiege.disabled = inSiegeBusy || !me.alive;
+      btnSiege.textContent = sm === 'idle' ? '🛡 SIEGE' : sm === 'sieged' ? '⚓ SIEGE ON' : '⏳ 변환 중...';
+      btnSiege.classList.toggle('active', sm === 'sieged');
+    }
+  }
 
   angleSlider.disabled = !isMyTurn;
   powerSlider.disabled = !isMyTurn;
@@ -839,7 +856,10 @@ function updateControls() {
     }
 
     if (btnFire) {
-      if (pending) btnFire.innerHTML = '🔥 ...';
+      if (teamMode && onCooldown && me) {
+        const remain = ((me.cooldownUntil - now) / 1000).toFixed(1);
+        btnFire.innerHTML = `⏳ ${remain}s`;
+      } else if (pending) btnFire.innerHTML = '🔥 ...';
       else if (doubleShotMode) btnFire.innerHTML = '🔥 FIRE × 2';
       else btnFire.innerHTML = '🔥 FIRE';
     }
@@ -925,6 +945,23 @@ function moveTankByDistance(direction) {
   const optimistic = Math.max(0, (me.moveBudget ?? 0) - actual);
   if (moveBudgetValue) moveBudgetValue.textContent = optimistic;
   socket.emit('moveBy', { direction, distance: dist });
+}
+
+function onTeamModeToggle() {
+  const cb = document.getElementById('teamModeToggle');
+  if (!cb) return;
+  socket.emit('setTeamMode', cb.checked);
+}
+
+function toggleSiege() {
+  if (!state) return;
+  if (!state.teamMode) {
+    showToast('⚠️ 시즈모드는 팀전 모드 전용');
+    return;
+  }
+  const me = state.players[myId];
+  if (!me) return;
+  socket.emit('toggleSiege');
 }
 
 function useRepair() {
@@ -2438,6 +2475,20 @@ function drawGuidedTrajectory() {
 function drawTankHull(player) {
   const x = player.x, y = player.y, color = player.color;
   const tt = player.tankType;
+  // === 시즈모드 발판 (양쪽 고정용) ===
+  if (player.siegeMode === 'sieged' || player.siegeMode === 'transforming' || player.siegeMode === 'untransforming') {
+    const phase = player.siegeMode === 'sieged' ? 1
+                : player.siegeMode === 'transforming' ? Math.min(1, (Date.now() - (player.siegeChangedAt || 0)) / 4000)
+                : Math.max(0, 1 - (Date.now() - (player.siegeChangedAt || 0)) / 4000);
+    const legW = 18 * phase;
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(x - 18 - legW, y + 5, legW, 5);
+    ctx.fillRect(x + 18,        y + 5, legW, 5);
+    // 발판 끝 받침
+    ctx.fillStyle = '#5a5a68';
+    ctx.fillRect(x - 18 - legW - 1, y + 8, 3, 4);
+    ctx.fillRect(x + 18 + legW - 2, y + 8, 3, 4);
+  }
   // 측면 펜더 (모두 공통)
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
@@ -2558,6 +2609,15 @@ function drawTankBarrel(player, isMyTurn) {
     case 'LEO2':  len = 28; width = 3;   offY = -7;  break;  // 장거리 = 가장 김
     case 'T10':   len = 20; width = 3;   offY = -7;  break;  // 짧음
     case 'ZTZ99': len = 22; width = 3.5; offY = -5;  break;  // 표준
+  }
+  // 시즈모드 — 포신 길어짐 (1.5배)
+  if (player.siegeMode === 'sieged') len *= 1.5;
+  else if (player.siegeMode === 'transforming') {
+    const phase = Math.min(1, (Date.now() - (player.siegeChangedAt || 0)) / 4000);
+    len *= (1 + 0.5 * phase);
+  } else if (player.siegeMode === 'untransforming') {
+    const phase = Math.max(0, 1 - (Date.now() - (player.siegeChangedAt || 0)) / 4000);
+    len *= (1 + 0.5 * phase);
   }
   const angle = player.angle * Math.PI / 180;
   const startX = x;
