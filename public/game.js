@@ -479,7 +479,7 @@ function updateHUD() {
 
   const w = state.wind;
   windArrow.textContent = w >= 0 ? '→' : '←';
-  windArrow.style.transform = `scaleX(${Math.sign(w) || 1})`;
+  windArrow.style.transform = 'none';
   windValue.textContent = Math.abs(w).toFixed(3);
 
   timerCircle.textContent = state.turnTimeLeft;
