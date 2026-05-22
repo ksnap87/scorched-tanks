@@ -506,29 +506,108 @@ function destroyRoom(roomId) {
   delete nextTurnFlags[roomId];
 }
 
+// === 9가지 맵 타입 (전술 다양성) ===
+const MAP_TYPES = ['flat', 'peak', 'valley', 'twin_peaks', 'island', 'plateau', 'staircase', 'floating_islands', 'pit'];
+const MAP_DESC = {
+  flat: '🌾 평지 — 사거리 우위 (LEO2 유리)',
+  peak: '⛰ 중앙 봉우리 — 고지대 점령 + 낙하데미지 (T10 기동 유리)',
+  valley: '🏞 가운데 협곡 — 사선 사격 + 폭탄 굴러내림 (ZTZ99 광역 유리)',
+  twin_peaks: '⛰⛰ 이중 봉우리 — 양 사이드 진지전 (T90 사거리 유리)',
+  island: '🏝 섬 — 양옆 절벽 + 가운데 봉우리 (M1A2 카펫/탱키 유리)',
+  plateau: '🪨 고원 — 중앙 평평한 평지 + 좌우 비탈 (K2 빨콩 직격 유리)',
+  staircase: '📐 계단 — 점진 상승 지형 (각도 계산 중요)',
+  floating_islands: '🌫 떠있는 섬 — 3개 분리된 platform + 깊은 골 (떨어지면 큰 낙하 데미지)',
+  pit: '🕳 함정 — 가운데 깊은 구덩이 (밑에서 폭탄으로 땅 파괴 → 추락 사망 가능)',
+};
+let lastMapType = null;  // 같은 맵 연속 방지
+
 function generateTerrain(continent = 'KR', mapWidth = CANVAS_WIDTH) {
   const terrain = [];
   const points = [];
-  // 맵이 넓으면 포인트도 더 (지형 다양성 유지)
-  const numPoints = mapWidth > CANVAS_WIDTH * 1.5 ? 14 : 8;
+  const numPoints = mapWidth > CANVAS_WIDTH * 1.5 ? 14 : 10;
 
-  // 대륙별 지형 특성
-  let yBase = 0.35, yRange = 0.30, centerHigh = false;
+  // 대륙별 기본 (y 중심, 변화량)
+  let yBase = 0.45, yRange = 0.20;
   switch (continent) {
-    case 'RU': yBase = 0.50; yRange = 0.18; break;
-    case 'CN': yBase = 0.40; yRange = 0.40; break;
-    case 'KR': yBase = 0.45; yRange = 0.28; break;
-    case 'JP': yBase = 0.55; yRange = 0.35; centerHigh = true; break;
-    case 'US': yBase = 0.40; yRange = 0.32; break;
-    case 'DE': yBase = 0.52; yRange = 0.22; break;
+    case 'RU': yBase = 0.50; yRange = 0.15; break;
+    case 'CN': yBase = 0.45; yRange = 0.25; break;
+    case 'KR': yBase = 0.45; yRange = 0.20; break;
+    case 'JP': yBase = 0.50; yRange = 0.22; break;
+    case 'US': yBase = 0.42; yRange = 0.22; break;
+    case 'DE': yBase = 0.50; yRange = 0.16; break;
   }
 
+  // 맵 타입 랜덤 (이전 맵 제외)
+  const available = MAP_TYPES.filter(m => m !== lastMapType);
+  const mapType = available[Math.floor(Math.random() * available.length)];
+  lastMapType = mapType;
+
+  const H = CANVAS_HEIGHT;
   for (let i = 0; i <= numPoints; i++) {
     const x = (i / numPoints) * mapWidth;
-    let y = CANVAS_HEIGHT * yBase + Math.random() * CANVAS_HEIGHT * yRange;
-    if (centerHigh) {
-      const centerDist = Math.abs(i - numPoints / 2) / (numPoints / 2);
-      y -= (1 - centerDist) * CANVAS_HEIGHT * 0.22;
+    const tPos = i / numPoints;            // 0..1 가로 위치
+    const centerDist = Math.abs(tPos - 0.5) * 2;  // 0(center) .. 1(edge)
+    const noise = (Math.random() - 0.5) * yRange * H * 0.5;
+    let y = H * yBase + noise;
+    switch (mapType) {
+      case 'flat':
+        y = H * (yBase + 0.05) + (Math.random() - 0.5) * H * 0.05;
+        break;
+      case 'peak':
+        // 중앙 봉우리 — 가운데 높음 (y 작음)
+        y -= (1 - centerDist) * H * 0.30;
+        break;
+      case 'valley':
+        // 중앙 협곡 — 가운데 낮음 (y 큼)
+        y += (1 - centerDist) * H * 0.25;
+        break;
+      case 'twin_peaks': {
+        // 양 사이드 봉우리 (tPos = 0.25, 0.75 에서 가장 높음)
+        const peakDist = Math.min(Math.abs(tPos - 0.25), Math.abs(tPos - 0.75));
+        y -= Math.max(0, (1 - peakDist * 3)) * H * 0.28;
+        break;
+      }
+      case 'island':
+        // 가운데 봉우리 + 양 끝 깊은 절벽
+        if (centerDist < 0.4) y -= (1 - centerDist / 0.4) * H * 0.25;     // 중앙 봉우리
+        else if (centerDist > 0.7) y += (centerDist - 0.7) / 0.3 * H * 0.35;  // 양 끝 절벽
+        break;
+      case 'plateau':
+        // 중앙 평평한 고원 + 좌우 비탈
+        if (centerDist < 0.35) y -= H * 0.20;
+        else y -= (1 - (centerDist - 0.35) / 0.65) * H * 0.10;
+        break;
+      case 'staircase':
+        // 점진 상승 (왼→오) 또는 (오→왼)
+        {
+          const direction = (Math.sin(Date.now() / 7919) > 0) ? 1 : -1;
+          y -= (direction > 0 ? tPos : (1 - tPos)) * H * 0.30;
+        }
+        break;
+      case 'floating_islands': {
+        // 3개 platform: 양옆 + 가운데. 사이는 깊은 골 (수직 절벽)
+        // platform 중심: tPos = 0.15, 0.5, 0.85
+        const centers = [0.15, 0.5, 0.85];
+        let nearest = 1, dMin = Infinity;
+        centers.forEach(c => { const d = Math.abs(tPos - c); if (d < dMin) { dMin = d; nearest = c; }});
+        if (dMin < 0.08) {
+          // platform 위
+          y = H * 0.42 + (Math.random() - 0.5) * H * 0.04;
+        } else {
+          // 골짜기 — 매우 깊음 (떨어지면 큰 낙하)
+          y = H * 0.80 + (Math.random() - 0.5) * H * 0.04;
+        }
+        break;
+      }
+      case 'pit': {
+        // 가운데 (tPos 0.4~0.6) 가 매우 깊은 구덩이 — 떨어지면 사실상 즉사
+        if (centerDist < 0.25) {
+          y = H * 0.82 + (Math.random() - 0.5) * H * 0.05;
+        } else {
+          y -= centerDist * H * 0.08;     // 양옆은 살짝 봉우리
+        }
+        break;
+      }
     }
     points.push({ x, y });
   }
@@ -537,22 +616,21 @@ function generateTerrain(continent = 'KR', mapWidth = CANVAS_WIDTH) {
     const t = x / mapWidth;
     const idx = Math.floor(t * numPoints);
     const localT = (t * numPoints) - idx;
-
     const p0 = points[Math.max(0, idx - 1)];
     const p1 = points[idx];
     const p2 = points[Math.min(numPoints, idx + 1)];
     const p3 = points[Math.min(numPoints, idx + 2)];
-
     const y = 0.5 * (
       (2 * p1.y) +
       (-p0.y + p2.y) * localT +
       (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * localT * localT +
       (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * localT * localT * localT
     );
-
-    terrain.push(Math.max(CANVAS_HEIGHT * 0.2, Math.min(CANVAS_HEIGHT * 0.8, y)));
+    terrain.push(Math.max(H * 0.18, Math.min(H * 0.88, y)));
   }
 
+  // 맵 타입 metadata 를 마지막 element 로 attach (room 에서 추출용)
+  terrain._mapType = mapType;
   return terrain;
 }
 
@@ -710,9 +788,13 @@ function startNewRound(room) {
   // 팀전이면 맵 2배
   room.mapWidth = room.teamMode ? CANVAS_WIDTH * 2 : CANVAS_WIDTH;
   room.terrain = generateTerrain(room.continent, room.mapWidth);
-  // 대륙 특징 채팅 안내
+  room.mapType = room.terrain._mapType || 'flat';
+  // 대륙 + 맵 특징 채팅 안내
   if (CONTINENT_DESC[room.continent]) {
     setTimeout(() => systemChat(room, CONTINENT_DESC[room.continent]), 500);
+  }
+  if (MAP_DESC[room.mapType]) {
+    setTimeout(() => systemChat(room, MAP_DESC[room.mapType]), 900);
   }
   room.projectile = null;
   room.explosions = [];
