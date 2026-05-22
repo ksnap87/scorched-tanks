@@ -1407,50 +1407,25 @@ function startFire(room, player, weaponType, useDouble) {
       // 자유낙하 시간 약 1500ms 의 가속 곡선 끝점이 a.targetY → 폭탄 i 의 폭발 X = jetXAt(myDropStart)
       const isCarpet = ult.kind === 'b2_carpet' || ult.kind === 'f22_carpet';
       if (isCarpet) {
-        const mw = room.mapWidth || CANVAS_WIDTH;
-        const fromLeft = detonateX < mw / 2;
-        const startX_b = fromLeft ? -180 : mw + 180;
+        // === B-2 세로 일점 투하 — 8발이 모두 detonateX 한 곳에 시간차로 떨어짐 ===
         const bombCount = 8;
         const incoming = AIRSTRIKE_INCOMING_MS;
-        const linger = AIRSTRIKE_LINGER_MS;
-        // 좁은 카펫: targetX 통과 직전 ~ 직후 짧은 시간에 8발 (클라 dropWindow 와 일치)
-        const dropWindowStart = incoming - 220;
-        const dropWindowEnd = incoming + 170;
+        // 클라 drawB2Spirit 와 동일한 타이밍
+        const dropWindowStart = incoming - 500;
+        const dropWindowEnd = incoming + 100;
         const dropInterval = (dropWindowEnd - dropWindowStart) / (bombCount - 1);
-        // 각 폭탄의 X 위치를 클라 jetXAt 공식과 정확히 일치하게 계산 (도달 전/후 분기)
-        function jetXAtServer(eAt) {
-          if (eAt <= incoming) {
-            const t = eAt / incoming;
-            return startX_b + (detonateX - startX_b) * (1 - Math.pow(1 - t, 1.5));
-          } else {
-            const endX_b = fromLeft ? mw + 180 : -180;
-            const tAfter = Math.min(1, (eAt - incoming) / linger);
-            return detonateX + (endX_b - detonateX) * tAfter;
-          }
-        }
-        // sub-explosion 데미지/반경 — 좁은 카펫에 8발 몰리니 더 낮게 (한 탱크가 2~3발 맞아도 OP 안 됨)
-        const subDamage = Math.max(8, Math.round(ult.damage * 0.32));
-        const subRadius = Math.max(10, Math.round(ult.radius * 0.45));
-        const fallMs = 1500;
-        // ult.damage / radius 는 applyExplosion 의 ammo lookup 으로 사용되므로,
-        // 일시적으로 player 의 가짜 tankDef 사용 대신 직접 폭발 호출
+        const fallMs = 800;
+        // sub-explosion 데미지/반경 — 한 점 8발이라 누적 OP 방지
+        const subDamage = Math.max(8, Math.round(ult.damage * 0.28));
+        const subRadius = Math.max(10, Math.round(ult.radius * 0.4));
+        const bombTerrainY = getTerrainY(room.terrain, detonateX);
         for (let i = 0; i < bombCount; i++) {
           const myDropStart = dropWindowStart + i * dropInterval;
-          const bombX = jetXAtServer(myDropStart);
-          // 맵 wrap
-          let bx = bombX;
-          if (bx < 0) bx += mw;
-          else if (bx >= mw) bx -= mw;
-          const bombTerrainY = getTerrainY(room.terrain, bx);
-          const detonateAt = AIRSTRIKE_INCOMING_MS - (incoming - myDropStart - fallMs);
-          // 위 공식: 폭탄 i 가 시각상 지면 도달하는 시점 = myDropStart + fallMs (relative to airstrike start)
-          // 이 시점에 폭발 발사. clamp 안전망.
-          const fireAtMs = Math.max(50, Math.min(AIRSTRIKE_INCOMING_MS + 200, myDropStart + fallMs));
+          // 시각상 폭탄이 지면에 닿는 시점 = myDropStart + fallMs (relative to airstrike start)
+          const fireAtMs = Math.max(50, Math.min(AIRSTRIKE_INCOMING_MS + AIRSTRIKE_LINGER_MS - 100, myDropStart + fallMs));
           setTimeout(() => {
             if (room.phase !== 'playing') return;
-            // 직접 폭발 (laser_guided 와 동일 path, 단 damage/radius override 위해 일시 ult 복사 안 함)
-            // applyExplosion 의 laser_guided 분기는 ult 의 damage/radius 사용. carpet 의 경우 한 발 = 작은 폭발.
-            // 트릭: 임시로 player.tankType 의 ult.damage/radius 를 sub 로 바꾸고 호출 후 원복.
+            // 임시 ult override 후 폭발 호출
             const td = getTankDef(player.tankType);
             const origDmg = td.ultimate.damage;
             const origRad = td.ultimate.radius;
@@ -1458,7 +1433,7 @@ function startFire(room, player, weaponType, useDouble) {
             td.ultimate.damage = subDamage;
             td.ultimate.radius = subRadius;
             td.ultimate.terrainRadius = Math.max(8, Math.round((origTR || subRadius) * 0.55));
-            applyExplosion(room, bx, bombTerrainY, 'laser_guided', null, player);
+            applyExplosion(room, detonateX, bombTerrainY, 'laser_guided', null, player);
             td.ultimate.damage = origDmg;
             td.ultimate.radius = origRad;
             td.ultimate.terrainRadius = origTR;

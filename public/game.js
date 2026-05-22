@@ -1878,23 +1878,23 @@ function drawB2Spirit(a, elapsed, incoming, linger) {
   }
   ctx.restore();
 
-  // ===== 폭탄 일렬 투하 — 각 폭탄은 떨어진 시점 X에 고정 =====
-  // 좁은 카펫: 비행기가 targetX 통과 직전 ~ 직후 짧은 시간 안에 8발 모두 떨어뜨림 (좌우 대칭 분산)
+  // ===== 폭탄 세로 일점 투하 — 8발 모두 targetX 한 곳에 시간차로 순차 낙하 =====
   const bombCount = 8;
-  const dropWindowStart = incoming - 220;    // targetX 도달 직전
-  const dropWindowEnd = incoming + 170;      // targetX 살짝 지난 시점
+  const dropWindowStart = incoming - 500;    // 첫 폭탄 투하
+  const dropWindowEnd = incoming + 100;      // 마지막 폭탄 투하
   const dropInterval = (dropWindowEnd - dropWindowStart) / (bombCount - 1);
+  const FALL_MS = 800;
   for (let i = 0; i < bombCount; i++) {
     const myDropStart = dropWindowStart + i * dropInterval;
     if (elapsed < myDropStart) continue;
     const localElapsed = elapsed - myDropStart;
-    if (localElapsed > 2200) continue;
-    // 이 폭탄이 떨어진 시점의 비행기 X (그 위치에 고정해서 자유낙하)
-    const bombX = jetXAt(myDropStart);
+    if (localElapsed > FALL_MS + 500) continue;
+    // 모든 폭탄의 X = targetX 고정 (한 점에 세로로 떨어짐)
+    const bombX = a.targetX;
     // 자유낙하 (가속, 지면 도달까지)
-    const fallStart = jetY + 8;
+    const fallStart = 30;                    // 화면 위에서부터
     const fallEnd = a.targetY - 2;
-    const tFall = Math.min(1, localElapsed / 1500);
+    const tFall = Math.min(1, localElapsed / FALL_MS);
     const by = fallStart + (fallEnd - fallStart) * (tFall * tFall);
     if (by > a.targetY) continue;
     // 폭탄 동체
