@@ -1193,7 +1193,8 @@ document.addEventListener('keydown', (e) => {
   const me = state.players[myId];
   if (!me) return;
 
-  const oneShotKeys = ['a', 'A', 'd', 'D', 'x', 'X', ' ', '1', '2', '3', '4', 'r', 'R', 's', 'S'];
+  // A/D는 누르고 있으면 연속 이동 (repeat 허용). 나머지 단발 액션은 repeat 차단.
+  const oneShotKeys = ['x', 'X', ' ', '1', '2', '3', '4', 'r', 'R', 's', 'S'];
   if (e.repeat && oneShotKeys.includes(e.key)) return;
 
   switch (e.key) {
@@ -1243,11 +1244,12 @@ document.addEventListener('keydown', (e) => {
       break;
     case 'a': case 'A':
       e.preventDefault();
-      moveTankOnce(-1);
+      // 입력 칸의 dist (기본 2px) 만큼 좌로. 누르고 있으면 연속.
+      moveTankByDistance(-1);
       break;
     case 'd': case 'D':
       e.preventDefault();
-      moveTankOnce(1);
+      moveTankByDistance(1);
       break;
     case 'x': case 'X':
       e.preventDefault();
