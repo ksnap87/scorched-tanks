@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=49">
+  <link rel="stylesheet" href="style.css?v=50">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -51,15 +51,19 @@
           <div class="name-input-group">
             <input type="text" id="nameInput" placeholder="Enter your name..." maxlength="12" autocomplete="off">
             <button class="btn" style="padding: 12px 20px; font-size: 0.8rem; background: #1E90FF; color: #fff; border-radius: 10px;" onclick="setName()">SET</button>
-            <label class="team-toggle-inline">
-              <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
-              <span>⚔️ 팀전 모드</span>
-            </label>
-            <div class="team-info">
-              <b>⚔️ 팀전 모드 안내</b> · A팀 vs B팀 최대 <b>5:5</b> · <b>실시간 발사</b>(턴제 X) · 무기별 <b>장전속도</b> 차이 · <b>시즈모드</b>(4초 변환 / 장전+20% / 이동불가) · <b>맵 2배 확장</b>
-            </div>
             <button class="btn btn-start" id="btnStart" onclick="startGame()" disabled>START BATTLE</button>
           </div>
+
+          <label class="team-toggle-card">
+            <div class="ttc-head">
+              <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
+              <span class="ttc-title">⚔️ 팀전 모드</span>
+              <span class="ttc-on-hint">체크하면 활성화</span>
+            </div>
+            <div class="ttc-desc">
+              A팀 vs B팀 최대 <b>5:5</b> · <b>실시간 발사</b>(턴제 X) · 무기별 <b>장전속도</b> 차이 · <b>시즈모드</b>(4초 변환 / 장전+20% / 이동불가) · <b>맵 2배 확장</b>
+            </div>
+          </label>
 
           <div class="player-list">
             <h3>PLAYERS</h3>
@@ -257,6 +261,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=49"></script>
+  <script src="game.js?v=50"></script>
 </body>
 </html>

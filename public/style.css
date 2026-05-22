@@ -149,20 +149,95 @@ body {
 .lobby-v2 .team-toggle-inline span { color: #e0e0e0; }
 .lobby-v2 .team-toggle-inline input:checked + span,
 .lobby-v2 .team-toggle-inline:has(input:checked) { color: #FFD93D; border-color: rgba(255, 217, 61, 0.5); }
-/* 팀전 설명 라인 */
-.lobby-v2 .team-info {
-  flex: 1 1 100%;
-  margin-top: 4px;
-  font-size: 0.88rem;
-  color: #ccc;
-  line-height: 1.5;
-  font-weight: 500;
-  padding: 6px 10px;
-  background: rgba(255, 217, 61, 0.06);
-  border: 1px solid rgba(255, 217, 61, 0.2);
-  border-radius: 6px;
+
+/* === 팀전 모드 큰 카드 (체크박스 + 제목 + 설명 통합) === */
+.lobby-v2 .team-toggle-card {
+  display: block;
+  width: 100%;
+  padding: 16px 20px;
+  margin: 0;
+  background: rgba(255, 217, 61, 0.05);
+  border: 2px solid rgba(255, 217, 61, 0.18);
+  border-radius: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
 }
-.lobby-v2 .team-info b { color: #FFD93D; font-weight: 700; }
+.lobby-v2 .team-toggle-card:hover {
+  background: rgba(255, 217, 61, 0.09);
+  border-color: rgba(255, 217, 61, 0.35);
+}
+.lobby-v2 .team-toggle-card:has(input:checked) {
+  background: rgba(255, 217, 61, 0.13);
+  border-color: #FFD93D;
+  box-shadow: 0 0 18px rgba(255, 217, 61, 0.25);
+}
+.lobby-v2 .team-toggle-card .ttc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.lobby-v2 .team-toggle-card input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  border: 2px solid rgba(255, 217, 61, 0.5);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  position: relative;
+  margin: 0;
+  flex: 0 0 auto;
+  transition: all 0.15s;
+}
+.lobby-v2 .team-toggle-card input[type="checkbox"]:checked {
+  background: #FFD93D;
+  border-color: #FFD93D;
+}
+.lobby-v2 .team-toggle-card input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1a1a;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+.lobby-v2 .team-toggle-card .ttc-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #FFD93D;
+  letter-spacing: 1px;
+  font-family: 'Orbitron', monospace;
+}
+.lobby-v2 .team-toggle-card .ttc-on-hint {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 500;
+}
+.lobby-v2 .team-toggle-card:has(input:checked) .ttc-on-hint {
+  color: #FFD93D;
+  font-weight: 700;
+}
+.lobby-v2 .team-toggle-card:has(input:checked) .ttc-on-hint::before {
+  content: '✅ 활성화됨 · ';
+}
+.lobby-v2 .team-toggle-card .ttc-desc {
+  font-size: 0.95rem;
+  color: #ccc;
+  line-height: 1.6;
+  font-weight: 500;
+  padding-left: 38px;     /* 체크박스 너비 + gap 만큼 들여쓰기 */
+}
+.lobby-v2 .team-toggle-card .ttc-desc b {
+  color: #FFD93D;
+  font-weight: 700;
+}
 
 /* 팀존이 10-col player-slots 안에 들어가도 전체 폭 차지 */
 .lobby-v2 .player-slots:has(.team-zones) {
@@ -187,10 +262,11 @@ body {
 }
 /* PLAYERS — 10명 가로 1줄 */
 .lobby-v2 .player-list h3 {
-  margin: 0 0 8px;
-  font-size: 0.72rem;
+  margin: 0 0 10px;
+  font-size: 0.88rem;
   letter-spacing: 2px;
-  color: #888;
+  color: #aaa;
+  font-weight: 700;
 }
 .lobby-v2 .player-slots {
   display: grid;
@@ -219,34 +295,36 @@ body {
 .lobby-v2 .key-hints-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
-  font-size: 0.72rem;
-  color: #aaa;
-  line-height: 1.4;
+  gap: 8px 18px;
+  font-size: 0.85rem;
+  color: #bbb;
+  line-height: 1.5;
 }
 .lobby-v2 .key-hints-bar span {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   white-space: nowrap;
 }
 .lobby-v2 .key-hints-bar kbd {
   display: inline-block;
-  min-width: 18px;
+  min-width: 22px;
   text-align: center;
-  padding: 2px 5px;
-  font-size: 0.65rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  margin-right: 2px;
+  padding: 3px 7px;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  margin-right: 3px;
+  font-weight: 600;
 }
 /* 탱크 6장 가로 1줄 */
 .lobby-v2 .tank-select h3 {
-  margin: 0 0 10px;
-  font-size: 0.72rem;
+  margin: 0 0 12px;
+  font-size: 0.88rem;
   letter-spacing: 2px;
-  color: #888;
+  color: #aaa;
+  font-weight: 700;
 }
 .lobby-v2 .tank-grid-row {
   display: grid !important;
