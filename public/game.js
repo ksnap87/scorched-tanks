@@ -404,55 +404,161 @@ socket.on('init', (data) => {
   }
 });
 
+// 6축 헥사곤 능력치 점수 (0~100 정규화)
+function computeHexScores(t) {
+  const clamp = (v) => Math.max(0, Math.min(100, v));
+  // HP: 95~140 → 0~100
+  const hp = clamp(((t.hp || 100) - 90) * 2.2);
+  // 사거리: 0.6~1.4 → 30~100
+  const range = clamp(((t.range || 1.0) - 0.5) * 110);
+  // 기동: (move/170 + moveSpeed/2.3) / 2 → 100 기준
+  const mobi = clamp((((t.move || 100) / 170) + ((t.moveSpeed || 1.0) / 2.3)) * 50);
+  // 포탄1 : damage × radius (pierce 보너스). 기준 700 = 100점
+  const a = t.ammo || { damage: 30, radius: 10 };
+  const ammoScore = clamp((a.damage * a.radius * (a.pierce || 1)) / 7);
+  // 포탄2: damage × radius × multi + DOT/관통 보너스
+  const b = t.bomb2 || { damage: 30, radius: 10 };
+  let bombScore = (b.damage || 30) * (b.radius || 5) * (b.multi || 1);
+  if (b.kind === 'uranium') bombScore += (b.dotDps || 0) * (b.dotDuration || 0) * 25;       // DOT 누적
+  if (b.kind === 'shotgun' && b.fire) bombScore += b.fire.dps * b.fire.duration * b.fire.radius * 0.5;
+  if (b.kind === 'guided') bombScore *= 1.6;        // 명중 보장 보너스
+  if (b.kind === 'laser_beam') bombScore = (b.damage || 0) * 14 + (b.range || 0) * 2;  // 관통 보너스
+  const bomb = clamp(bombScore / 12);
+  // 필살기: damage × (radius + terrainRadius). B-2 카펫은 8발이라 ×3
+  const u = t.ultimate || { damage: 50, radius: 20, terrainRadius: 20 };
+  let ultScore = (u.damage || 50) * ((u.radius || 0) + (u.terrainRadius || 0));
+  if (u.kind === 'b2_carpet') ultScore *= 2.5;
+  const ult = clamp(ultScore / 60);
+  return { hp, range, mobi, ammo: ammoScore, bomb, ult };
+}
+
+// 6축 헥사곤 SVG 생성 (size=110, 각 정점 = 60+sin/cos)
+function hexSvgFor(t, color) {
+  const s = computeHexScores(t);
+  const cx = 60, cy = 60, R = 44;
+  // 6축: top=HP, upper-right=사거리, lower-right=포탄1, bottom=필살기, lower-left=포탄2, upper-left=기동
+  const order = ['hp', 'range', 'ammo', 'ult', 'bomb', 'mobi'];
+  const labels = ['HP', '사거리', '포탄1', '필살기', '포탄2', '기동'];
+  function vertex(i, ratio) {
+    const ang = -Math.PI / 2 + i * (Math.PI / 3);   // -90° + 60° × i (HP=top)
+    return { x: cx + Math.cos(ang) * R * ratio, y: cy + Math.sin(ang) * R * ratio };
+  }
+  // 격자 (3단계 동심)
+  let gridStr = '';
+  [0.33, 0.66, 1.0].forEach(r => {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+      const v = vertex(i, r);
+      pts.push(`${v.x.toFixed(1)},${v.y.toFixed(1)}`);
+    }
+    gridStr += `<polygon class="hex-grid" points="${pts.join(' ')}" />`;
+  });
+  // 축 라인
+  let axisStr = '';
+  for (let i = 0; i < 6; i++) {
+    const v = vertex(i, 1.0);
+    axisStr += `<line class="hex-axis" x1="${cx}" y1="${cy}" x2="${v.x.toFixed(1)}" y2="${v.y.toFixed(1)}" />`;
+  }
+  // 데이터 폴리곤
+  const dataPts = [];
+  for (let i = 0; i < 6; i++) {
+    const v = vertex(i, (s[order[i]] || 0) / 100);
+    dataPts.push(`${v.x.toFixed(1)},${v.y.toFixed(1)}`);
+  }
+  // 축 라벨
+  let labelStr = '';
+  for (let i = 0; i < 6; i++) {
+    const v = vertex(i, 1.22);
+    labelStr += `<text class="hex-label" x="${v.x.toFixed(1)}" y="${v.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central">${labels[i]}</text>`;
+  }
+  return `<svg viewBox="0 0 120 120" class="tc-hex-svg" preserveAspectRatio="xMidYMid meet">
+    ${gridStr}${axisStr}
+    <polygon class="hex-data" points="${dataPts.join(' ')}" stroke="${color}" fill="${color}" />
+    ${labelStr}
+  </svg>`;
+}
+
 function renderTankGrid() {
   const grid = document.getElementById('tankGrid');
   if (!grid || !tankTypes) return;
-  // 능력치 점수 기반 바 표시
-  const SCORE_DIVISOR = 50;
-  const scoreOf = {
-    hp: (v) => v / 4,
-    range: (v) => v * 25,
-    move: (v) => v / 8,
+  // 탱크 색 (국가별)
+  const TANK_COLORS = {
+    K2: '#1E90FF', M1A2: '#FF4757', T90: '#7BED9F', T10: '#FFD93D',
+    ZTZ99: '#FF6348', LEO2: '#A29BFE',
   };
-  const pct = (score) => Math.min(100, Math.max(0, Math.round((score / SCORE_DIVISOR) * 100)));
-  // 장전속도 — NORMAL + bomb2 평균 cooldown (server.js getCooldownMs 공식과 일치)
-  // baseCd: normal=1800, redbean=2800 → 평균 2300
-  // cd = baseCd + damage * 60
+  // 평균 cooldown (헥사곤 + 미니 텍스트용)
   const computeReloadMs = (t) => {
     const dmgN = (t.ammo && t.ammo.damage) || 30;
     const dmgB = (t.bomb2 && t.bomb2.damage) || 30;
-    const cdN = 1800 + dmgN * 60;
-    const cdB = 2800 + dmgB * 60;
-    return (cdN + cdB) / 2;
+    return ((1800 + dmgN * 60) + (2800 + dmgB * 60)) / 2;
   };
-  // 바 길이 — 짧을수록 좋음 (inverse)
-  // 범위: 3000ms (빠름, 100%) ~ 6000ms (느림, 0%)
-  const reloadPct = (ms) => Math.min(100, Math.max(0, Math.round((6000 - ms) / 30)));
 
   let html = '';
   Object.values(tankTypes).forEach(t => {
     const isSel = (selectedTank === t.id);
-    const hpPct = pct(scoreOf.hp(t.hp));
-    const rangePct = pct(scoreOf.range(t.range));
-    const movePct = pct(scoreOf.move(t.move));
-    const reloadMs = computeReloadMs(t);
-    const reloadSeconds = (reloadMs / 1000).toFixed(1);
-    const rPct = reloadPct(reloadMs);
+    const color = TANK_COLORS[t.id] || '#1E90FF';
+    const reloadSec = (computeReloadMs(t) / 1000).toFixed(1);
     html += `<div class="tank-card${isSel ? ' selected' : ''}" data-tank="${t.id}" onclick="selectTank('${t.id}')">
       <div class="tc-head">
         <span class="tc-flag">${t.flag}</span>
         <span class="tc-name">${t.name}</span>
       </div>
       <div class="tc-country">${t.country} · ${t.desc}</div>
-      <div class="tc-stats">
-        <div class="ts-row"><span class="ts-label">HP</span><span class="ts-bar"><span class="ts-fill hp" style="width:${hpPct}%"></span></span><span class="ts-val">${t.hp}</span></div>
-        <div class="ts-row"><span class="ts-label">사거리</span><span class="ts-bar"><span class="ts-fill range" style="width:${rangePct}%"></span></span><span class="ts-val">${t.range}×</span></div>
-        <div class="ts-row"><span class="ts-label">이동</span><span class="ts-bar"><span class="ts-fill move" style="width:${movePct}%"></span></span><span class="ts-val">${t.move}</span></div>
-        <div class="ts-row"><span class="ts-label">장전속도</span><span class="ts-bar"><span class="ts-fill speed" style="width:${rPct}%"></span></span><span class="ts-val">${reloadSeconds}s</span></div>
+      <div class="tc-hex">${hexSvgFor(t, color)}</div>
+      <div class="tc-stats-mini">
+        <span>HP <b>${t.hp}</b></span>
+        <span>사거리 <b>${t.range}×</b></span>
+        <span>이동 <b>${t.move}</b></span>
+        <span>장전 <b>${reloadSec}s</b></span>
       </div>
     </div>`;
   });
   grid.innerHTML = html;
+}
+
+// 인게임 탱크 스펙 패널 토글
+let specPanelOpen = false;
+function toggleSpecPanel() {
+  specPanelOpen = !specPanelOpen;
+  const panel = document.getElementById('specPanel');
+  if (panel) panel.style.display = specPanelOpen ? 'flex' : 'none';
+  if (specPanelOpen) renderSpecPanel();
+}
+function renderSpecPanel() {
+  const body = document.getElementById('specPanelBody');
+  if (!body || !tankTypes) return;
+  const TANK_COLORS = {
+    K2: '#1E90FF', M1A2: '#FF4757', T90: '#7BED9F', T10: '#FFD93D',
+    ZTZ99: '#FF6348', LEO2: '#A29BFE',
+  };
+  const myTank = (state && state.players && state.players[myId] && state.players[myId].tankType) || null;
+  let html = '';
+  Object.values(tankTypes).forEach(t => {
+    const color = TANK_COLORS[t.id] || '#1E90FF';
+    const isMine = (t.id === myTank);
+    const a = t.ammo || {};
+    const b = t.bomb2 || {};
+    const u = t.ultimate || {};
+    const bombLines = [];
+    if (b.kind === 'uranium') bombLines.push(`DOT r${b.dotRadius}/${b.dotDps}HP·s × ${b.dotDuration}s`);
+    if (b.kind === 'shotgun' && b.fire) bombLines.push(`화염 r${b.fire.radius}/${b.fire.dps}HP·s × ${b.fire.duration}s`);
+    if (b.kind === 'guided') bombLines.push(`유도 ${b.guideMs/1000}s`);
+    if (b.multi) bombLines.push(`멀티 ×${b.multi}`);
+    if (b.kind === 'laser_beam') bombLines.push(`관통빔 ${b.range}px / 두께 ${b.beamWidth}`);
+    html += `<div class="spec-row${isMine ? ' me' : ''}" style="border-left:3px solid ${color}">
+      <div class="sr-head">${t.flag} ${t.name}${isMine ? ' ★ 본인' : ''}</div>
+      <div class="sr-desc">${t.country} · ${t.desc}</div>
+      <div class="sr-lines">
+        <span class="lbl">HP</span><span>${t.hp}</span>
+        <span class="lbl">사거리</span><span>${t.range}×</span>
+        <span class="lbl">이동</span><span>${t.move} (속도 ${t.moveSpeed}×)</span>
+        <span class="lbl">포탄1</span><span>${a.kind} d${a.damage}/r${a.radius}${a.pierce ? ' 관통 '+a.pierce+'×' : ''}</span>
+        <span class="lbl">포탄2</span><span>${b.name || '-'} d${b.damage}/r${b.radius || '-'}${bombLines.length ? ' · '+bombLines.join(', ') : ''}</span>
+        <span class="lbl">필살기</span><span>${u.name || '-'} d${u.damage}/r${u.radius}${u.terrainRadius ? '/지형'+u.terrainRadius : ''}</span>
+      </div>
+    </div>`;
+  });
+  body.innerHTML = html;
 }
 
 function selectTank(id) {
