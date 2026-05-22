@@ -23,20 +23,19 @@ body {
   position: fixed;
   inset: 0;
   z-index: 100;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px 12px;
+  padding: 30px 12px;
   background: radial-gradient(ellipse at 50% 30%, #1a1a3a 0%, #0a0a1a 70%);
+  /* flex 제거 — block 흐름으로 자연 스크롤 */
 }
 
-#lobby::-webkit-scrollbar { width: 8px; }
-#lobby::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+#lobby::-webkit-scrollbar { width: 10px; }
+#lobby::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 5px; }
+#lobby::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.35); }
 
 .lobby-container {
-  margin: auto 0;
+  margin: 0 auto;
 }
 
 .lobby-container {
