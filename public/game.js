@@ -2911,13 +2911,14 @@ function drawTanks() {
       ctx.fillRect(x + i - 1, y + 8, 2, 3);
     }
 
+    // HP 바 (탱크 위 — 원위치)
     const hpPct = player.hp / (player.maxHp || 100);
-    const hpBarW = 36;
-    const hpBarH = 4;
+    const hpBarW = 40;
+    const hpBarH = 5;
     const hpBarX = x - hpBarW / 2;
-    const hpBarY = y - 28;
+    const hpBarY = y - 30;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.beginPath();
     ctx.roundRect(hpBarX - 1, hpBarY - 1, hpBarW + 2, hpBarH + 2, 2);
     ctx.fill();
@@ -2928,13 +2929,21 @@ function drawTanks() {
     ctx.roundRect(hpBarX, hpBarY, hpBarW * hpPct, hpBarH, 2);
     ctx.fill();
 
+    // HP 숫자 (바 바로 위 작게)
+    ctx.font = '600 9px "Orbitron", "Pretendard", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillText(`${Math.max(0, Math.round(player.hp))}/${player.maxHp || 100}`, x, hpBarY - 3);
+
+    // 이름 (탱크 아래)
     ctx.font = '700 12px "Pretendard", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = isMe ? '#fff' : 'rgba(255,255,255,0.7)';
     ctx.fillText(player.name, x, y + 25);
 
+    // 자기 턴 화살표 (HP 바 위)
     if (isMyTurn) {
-      const arrowY = hpBarY - 20 + Math.sin(Date.now() / 300) * 3;
+      const arrowY = hpBarY - 22 + Math.sin(Date.now() / 300) * 3;
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.moveTo(x, arrowY + 8);

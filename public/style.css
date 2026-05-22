@@ -1199,18 +1199,26 @@ canvas {
 }
 .btn-repair:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Weapon buttons */
+/* Weapon buttons — 2x2 grid, 모든 버튼 동일 크기 */
 .weapon-group {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px !important;
-  flex-wrap: wrap;
+  align-items: stretch;
+}
+.weapon-group .ctrl-label {
+  grid-column: 1 / -1;       /* 라벨은 전체 가로 한 줄 */
+  margin-bottom: 2px;
 }
 
 .btn-weapon {
   font-family: 'Orbitron', monospace;
   font-weight: 700;
-  font-size: 0.72rem;
-  letter-spacing: 1px;
-  padding: 7px 12px;
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+  padding: 0 8px;
+  height: 38px;
+  min-width: 88px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
@@ -1218,6 +1226,14 @@ canvas {
   cursor: pointer;
   transition: all 0.18s;
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.1;
 }
 
 .btn-weapon:hover:not(:disabled) {
