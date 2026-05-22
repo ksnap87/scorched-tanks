@@ -257,8 +257,8 @@ const TANK_TYPES = {
            hp: 115, range: 0.7, move: 170, speed: 1.0, moveSpeed: 2.3,
            desc: '닌자 · 정밀 유도',
            ammo:  { kind: 'HE',     radius: 9,  damage: 27 },
-           bomb2: { kind: 'guided', name: '정밀 유도탄', damage: 30, radius: 12, range: 0.9, guideMs: 5000 },
-           ultimate: { kind: 'kamikaze',        name: '카미카제',      damage: 50, radius: 22, terrainRadius: 22 } },
+           bomb2: { kind: 'guided', name: '정밀 유도탄', damage: 34, radius: 13, range: 0.95, guideMs: 5000 },
+           ultimate: { kind: 'kamikaze',        name: '카미카제',      damage: 55, radius: 24, terrainRadius: 22 } },
   ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳',
            hp: 115, range: 0.6, move: 120, speed: 1.0, moveSpeed: 1.3,
            desc: '광역 DOT · 위성 레이저',
@@ -350,6 +350,9 @@ function maybeTriggerWeather(room) {
   room.weatherUsedThisGame = true;
   applyWeatherImmediate(room);
   systemChat(room, `${WEATHER_NAMES[kind] || kind} 발동!`);
+  if (WEATHER_DESC[kind]) {
+    setTimeout(() => systemChat(room, WEATHER_DESC[kind]), 400);
+  }
 }
 
 // === Rooms (multi-room support) ===
@@ -665,6 +668,22 @@ function resetToLobby(room) {
   broadcastState(room);
 }
 
+// 대륙별 특징 설명 (게임 시작 시 채팅에 표시)
+const CONTINENT_DESC = {
+  KR: '🇰🇷 한반도 — 산악 지형이 많고 5턴 이후 🌪 태풍 발생 가능 (탱크 ±20px 이동)',
+  US: '🇺🇸 북미 — 평탄한 지형. 랜덤 날씨 발동 가능',
+  CN: '🇨🇳 고비사막 — 평탄한 사막 지형. 🟡 모래바람 시 시야 차단됨',
+  RU: '🇷🇺 시베리아 — 완만한 지형. ❄️ 폭설 시 모든 탱크 -5 HP (T-90 면역)',
+  JP: '🇯🇵 일본 열도 — 중앙 산악. 🌧 폭우 시 이동 제한 + 늪지대 발생',
+  DE: '🇩🇪 유럽 평원 — 평탄한 지형. 랜덤 날씨 발동 가능',
+};
+const WEATHER_DESC = {
+  rain: '🌧 폭우 — 이동 불가, 늪지대(저지대) 진입 시 이동속도 50%',
+  snow: '❄️ 폭설 — 이동 불가. 시작 시 모든 탱크 -5 HP (T-90 면역)',
+  typhoon: '🌪 태풍 — 모든 탱크가 ±20px 랜덤 위치로 이동',
+  sandstorm: '🟡 모래바람 — 시야 240px 밖 완전 차단',
+};
+
 function startNewRound(room) {
   room.continent = pickContinent(room);
   room.weather = null;
@@ -672,6 +691,10 @@ function startNewRound(room) {
   // 팀전이면 맵 2배
   room.mapWidth = room.teamMode ? CANVAS_WIDTH * 2 : CANVAS_WIDTH;
   room.terrain = generateTerrain(room.continent, room.mapWidth);
+  // 대륙 특징 채팅 안내
+  if (CONTINENT_DESC[room.continent]) {
+    setTimeout(() => systemChat(room, CONTINENT_DESC[room.continent]), 500);
+  }
   room.projectile = null;
   room.explosions = [];
   room.wind = (Math.random() - 0.5) * WIND_CHANGE_RANGE * 2;
