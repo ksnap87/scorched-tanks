@@ -1095,7 +1095,9 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 
     if (dist < radius * 1.5) {
       // 자해 허용 — 본인 폭탄에 본인도 데미지 받음
-      const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)));
+      // 시즈모드 +20% 데미지
+      const siegeMul = (shooter && shooter.siegeMode === 'sieged') ? 1.20 : 1.0;
+      const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)) * siegeMul);
       const actualDamage = Math.max(damage, 5);
       player.hp = Math.max(0, player.hp - actualDamage);
       // shooter 통계 추적 (자기 자신 피격은 제외)
@@ -1464,6 +1466,7 @@ function startFire(room, player, weaponType, useDouble) {
   const proj = simulateProjectile(player.x, player.y, player.angle, player.power, player, room);
   proj.type = actualWeapon;
   proj.shooterId = player.id;
+  proj.tickCount = 0;     // 발사 후 tick. 5 tick(≈80ms) 이후엔 자기 hit 가능 (저파워 자해 보장)
   // ZTZ-99 샷건탄 — airBurst 거리 설정
   if (actualWeapon === 'redbean') {
     const tankDef = getTankDef(player.tankType);
@@ -1674,6 +1677,7 @@ function startFire(room, player, weaponType, useDouble) {
 
     const px = p.x;
     const py = p.y;
+    p.tickCount = (p.tickCount || 0) + 1;
 
     // 아래로만 종료 (좌우는 wrap)
     if (py > CANVAS_HEIGHT + 50) {
@@ -1755,7 +1759,7 @@ function startFire(room, player, weaponType, useDouble) {
           const target = room.players[id];
           if (!target.alive) continue;
           // 본인은 포구 거리(40px) 이전엔 즉발 방지, 그 이후는 자해 허용
-          if (target.id === p.shooterId && distFromShooter < 40) continue;
+          if (target.id === p.shooterId && p.tickCount < 5) continue;   // 발사 직후만 즉발 방지, 5 tick 후엔 자해 hit
           const dx = target.x - px;
           const dy = target.y - py;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1772,12 +1776,8 @@ function startFire(room, player, weaponType, useDouble) {
     for (const id of Object.keys(room.players)) {
       const target = room.players[id];
       if (!target.alive) continue;
-      // 자해 허용 — 단, 발사 직후(포구에서 40px 이내)는 즉발 방지
-      if (target.id === p.shooterId) {
-        const dxs = px - target.x;
-        const dys = py - target.y;
-        if (Math.sqrt(dxs * dxs + dys * dys) < 40) continue;
-      }
+      // 자해 허용 — 발사 직후 5 tick만 즉발 방지, 그 후엔 자기 포탄에 hit
+      if (target.id === p.shooterId && p.tickCount < 5) continue;
       const dx = target.x - px;
       const dy = target.y - py;
       if (Math.sqrt(dx * dx + dy * dy) < 20) {

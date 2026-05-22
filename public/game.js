@@ -116,6 +116,8 @@ function updateAuthBar() {
     guest.style.display = 'flex';
     user.style.display = 'none';
   }
+  // 이름 input 잠금 상태 동기화
+  if (typeof syncNameInputLockState === 'function') syncNameInputLockState();
 }
 
 async function openMyStats() {
@@ -863,11 +865,31 @@ function updateLobby() {
 }
 
 function setName() {
+  // 로그인 사용자는 username 고정 (이름 변경 불가)
+  if (authToken && authUser) {
+    showToast('⚠️ 로그인한 사용자는 이름 변경 불가 (계정 ID 사용)');
+    return;
+  }
   const name = nameInput.value.trim();
   if (name) {
     socket.emit('setName', name);
     nameInput.value = '';
     showToast(`NAME SET: ${name.toUpperCase()}`);
+  } else {
+    showToast('⚠️ 이름을 입력하세요');
+  }
+}
+
+// 로그인 상태에 따라 이름 input 비활성화 (UI hint)
+function syncNameInputLockState() {
+  if (!nameInput) return;
+  if (authToken && authUser) {
+    nameInput.disabled = true;
+    nameInput.placeholder = '🔒 로그인 ID (이름 변경 불가)';
+    nameInput.value = '';
+  } else {
+    nameInput.disabled = false;
+    nameInput.placeholder = 'Enter your name...';
   }
 }
 
@@ -2438,19 +2460,30 @@ function getClientTerrainY(x) {
 
 // === 🇷🇺 드론 수류탄 (T90) — 작은 쿼드콥터가 타겟 위에 떠서 수류탄 떨어뜨림 ===
 function drawDroneGrenade(a, elapsed, incoming, linger) {
-  const droneStartY = -30;
+  // 양 옆에서 진입 (좌측 또는 우측). targetX < 화면 절반이면 우→좌, 아니면 좌→우.
+  const fromLeft = a.targetX >= canvas.width / 2;
+  const droneStartX = fromLeft ? -80 : canvas.width + 80;
+  const droneTargetX = a.targetX;
   const droneTargetY = a.targetY - 80;
-  let droneY;
+  let droneX, droneY;
   if (elapsed <= incoming - 300) {
+    // 옆에서 타겟 위로 호버 진입 (수평 직선)
     const t = elapsed / (incoming - 300);
-    droneY = droneStartY + (droneTargetY - droneStartY) * t;
+    droneX = droneStartX + (droneTargetX - droneStartX) * t;
+    // Y는 처음엔 약간 높게 시작 → 호버 높이로 약하게 내려옴
+    const yStart = a.targetY - 140;
+    droneY = yStart + (droneTargetY - yStart) * t;
   } else if (elapsed <= incoming + 500) {
+    // 타겟 위에서 호버 (작은 진동)
+    droneX = droneTargetX + Math.sin((elapsed - incoming) / 130) * 4;
     droneY = droneTargetY + Math.sin((elapsed - incoming) / 100) * 3;
   } else {
+    // 임무 종료 후 반대쪽으로 이탈
     const tAway = Math.min(1, (elapsed - incoming - 500) / linger);
-    droneY = droneTargetY - 100 * tAway;
+    const exitX = fromLeft ? canvas.width + 80 : -80;
+    droneX = droneTargetX + (exitX - droneTargetX) * tAway;
+    droneY = droneTargetY - 30 * tAway;
   }
-  const droneX = a.targetX;
   // 드론 본체 (작은 검정 네모)
   ctx.save();
   ctx.translate(droneX, droneY);
