@@ -1500,6 +1500,30 @@ const FLAME_PALETTES = {
 
 // 카메라 흔들림 상태
 window._cameraShake = { intensity: 0, until: 0 };
+// 충격파 ring 배열 (탱크별 색/모양)
+window._shockRings = [];
+// 탱크/무기별 ring 스펙
+const RING_SPECS = {
+  // NORMAL 포탄 — 탱크별
+  n_K2:    { color: '#1E90FF', width: 3, expand: 1.6, life: 380, count: 1 },
+  n_M1A2:  { color: '#FFA502', width: 5, expand: 2.2, life: 480, count: 2 },        // 큰 더블 ring
+  n_T90:   { color: '#7BED9F', width: 2, expand: 2.8, life: 320, count: 1 },        // AP 빠르고 좁게 멀리
+  n_T10:   { color: '#FFD93D', width: 2.5, expand: 1.5, life: 340, count: 1 },
+  n_ZTZ99: { color: '#FF4757', width: 4, expand: 2.0, life: 420, count: 1 },        // 광역 큰 ring
+  n_LEO2:  { color: '#A29BFE', width: 2, expand: 3.0, life: 360, count: 1 },        // APFSDS 길게 뻗음
+  // 폭탄2
+  b_redbean:    { color: '#FF6B81', width: 5, expand: 2.0, life: 500, count: 2 },
+  b_multi:      { color: '#FFA502', width: 3, expand: 1.3, life: 300, count: 1 },
+  b_uranium:    { color: '#2ED573', width: 4, expand: 1.8, life: 600, count: 2 },    // DOT 잔류 느낌
+  b_guided:     { color: '#7CC4FF', width: 3, expand: 1.6, life: 400, count: 1 },
+  b_shotgun:    { color: '#FF6348', width: 4, expand: 2.0, life: 480, count: 1 },
+  b_laser_beam: { color: '#7BD3FF', width: 3, expand: 1.4, life: 280, count: 1 },
+  ult:    { color: '#FFD93D', width: 6, expand: 2.5, life: 700, count: 3 },         // 트리플 ring
+  nuke:   { color: '#FF4757', width: 10, expand: 3.0, life: 1100, count: 4 },       // 거대 멀티 ring
+  pickup: { color: '#FFD93D', width: 2, expand: 1.2, life: 250, count: 1 },
+  default:{ color: '#FF4757', width: 3, expand: 1.8, life: 400, count: 1 },
+};
+
 function spawnExplosion(x, y, radius, flameKind = 'default') {
   const p = FLAME_PALETTES[flameKind] || FLAME_PALETTES.default;
   const count = p.count + Math.floor(radius * 0.5);
@@ -1508,6 +1532,23 @@ function spawnExplosion(x, y, radius, flameKind = 'default') {
   if (shake > window._cameraShake.intensity) {
     window._cameraShake.intensity = shake;
     window._cameraShake.until = Date.now() + 350 + radius * 2;
+  }
+  // 충격파 ring (탱크별)
+  const ring = RING_SPECS[flameKind] || RING_SPECS.default;
+  for (let i = 0; i < ring.count; i++) {
+    window._shockRings.push({
+      x, y,
+      startR: radius * 0.5,
+      maxR: radius * ring.expand,
+      color: ring.color,
+      width: ring.width,
+      startedAt: Date.now() + i * 100,    // count > 1 일 때 시간차
+      duration: ring.life,
+    });
+  }
+  // ring 배열 trim
+  if (window._shockRings.length > 30) {
+    window._shockRings = window._shockRings.slice(-20);
   }
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -1524,6 +1565,30 @@ function spawnExplosion(x, y, radius, flameKind = 'default') {
       grav: p.gravity,
     });
   }
+}
+
+function drawShockRings() {
+  if (!window._shockRings || window._shockRings.length === 0) return;
+  const now = Date.now();
+  window._shockRings = window._shockRings.filter(r => {
+    const elapsed = now - r.startedAt;
+    if (elapsed < 0) return true;        // 아직 시작 안 한 (delay) ring 유지
+    if (elapsed > r.duration) return false;
+    const t = elapsed / r.duration;        // 0..1
+    const radius = r.startR + (r.maxR - r.startR) * t;
+    const alpha = Math.max(0, 1 - t);
+    ctx.save();
+    ctx.strokeStyle = r.color;
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.lineWidth = r.width * (1 - t * 0.5);    // 시간에 따라 가늘어짐
+    ctx.shadowColor = r.color;
+    ctx.shadowBlur = 12 * alpha;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    return true;
+  });
 }
 
 function updateParticles() {
@@ -1577,12 +1642,13 @@ function render() {
   drawItemBoxes();
   drawTanks();
   drawGuidedTrajectory();
-  drawProjectile();
   drawLaserBeams();          // Leopard 2 직선 레이저
   drawNukeMushroom();        // 핵폭탄 버섯구름 (폭발 전 시각)
   drawAirstrike();
   drawParticles();
   drawTrail();
+  drawShockRings();          // 폭발 충격파 ring (탱크별 색)
+  drawProjectile();          // ★ 본체는 trail/particle 위에 — 비행 중 가리지 않게
   drawWeatherParticles();   // 마지막: 시야 효과 + 라벨이 다른 요소 위로
 
   // 카메라 흔들림 복원
