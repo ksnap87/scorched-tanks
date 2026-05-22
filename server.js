@@ -826,6 +826,8 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < radius * 1.5) {
+      // 자기 폭탄(redbean=bomb2)에 본인은 데미지 X — 자기 발치 폭발 보호
+      if (shooter && id === shooter.id && weaponType === 'redbean') return;
       const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)));
       const actualDamage = Math.max(damage, 5);
       player.hp = Math.max(0, player.hp - actualDamage);
@@ -1231,6 +1233,7 @@ function startFire(room, player, weaponType, useDouble) {
     for (const id of Object.keys(room.players)) {
       const target = room.players[id];
       if (!target.alive) continue;
+      if (target.id === p.shooterId) continue;  // 발사자 본인 제외 (자기 포탄에 즉발 방지)
       const dx = target.x - px;
       const dy = target.y - py;
       if (Math.sqrt(dx * dx + dy * dy) < 20) {
@@ -1270,6 +1273,7 @@ setInterval(() => {
     room.radiationZones.forEach(z => {
       Object.values(room.players).forEach(p => {
         if (!p.alive) return;
+        if (z.shooterId === p.id) return;  // 발사자 본인은 자기 zone 면역 (방호복)
         const dx = p.x - z.x;
         const dy = p.y - z.y;
         if (Math.sqrt(dx * dx + dy * dy) < z.radius) {

@@ -1273,9 +1273,11 @@ function render() {
   drawAirstrike();
   drawParticles();
   drawTrail();
+  drawWeatherParticles();   // 마지막: 시야 효과 + 라벨이 다른 요소 위로
 
   updateParticles();
   updateClouds();
+  updateWeatherParticles();
 }
 
 function drawItemBoxes() {
@@ -1285,37 +1287,58 @@ function drawItemBoxes() {
     const wobble = Math.sin(time + (box.wobblePhase || 0)) * 4;
     const y = box.y + wobble;
     const x = box.x;
+    // 박스 type별 색/아이콘
+    const type = box.type || 'laser';
+    let chuteCol, glowCol, boxOuter, boxInner, icon, crossCol;
+    if (type === 'repair') {
+      chuteCol = 'rgba(46, 213, 115, 0.5)'; glowCol = '#2ED573'; boxOuter = '#2ED573'; boxInner = '#7BED9F'; icon = '🔧'; crossCol = '#0a3a18';
+    } else if (type === 'nuke') {
+      chuteCol = 'rgba(255, 71, 87, 0.55)'; glowCol = '#FF4757'; boxOuter = '#FF4757'; boxInner = '#FFA502'; icon = '☢️'; crossCol = '#3a0a0e';
+    } else {
+      chuteCol = 'rgba(255, 217, 61, 0.45)'; glowCol = '#FFD93D'; boxOuter = '#FFA502'; boxInner = '#FFD93D'; icon = '⚡'; crossCol = '#1a1a1a';
+    }
 
     ctx.save();
-    ctx.fillStyle = 'rgba(255, 217, 61, 0.45)';
+    // 패러슈트
+    ctx.fillStyle = chuteCol;
     ctx.beginPath();
     ctx.arc(x, y - 32, 18, Math.PI, 0);
     ctx.closePath();
     ctx.fill();
+    // 줄
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x - 10, y - 14); ctx.lineTo(x - 14, y - 30);
     ctx.moveTo(x + 10, y - 14); ctx.lineTo(x + 14, y - 30);
     ctx.stroke();
-    ctx.shadowColor = '#FFD93D';
+    // 박스 외/내곽
+    ctx.shadowColor = glowCol;
     ctx.shadowBlur = 18;
-    ctx.fillStyle = '#FFA502';
+    ctx.fillStyle = boxOuter;
     ctx.fillRect(x - 16, y - 14, 32, 30);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#FFD93D';
+    ctx.fillStyle = boxInner;
     ctx.fillRect(x - 13, y - 11, 26, 24);
-    ctx.strokeStyle = '#1a1a1a';
+    // 십자 패턴
+    ctx.strokeStyle = crossCol;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x - 13, y + 1); ctx.lineTo(x + 13, y + 1);
     ctx.moveTo(x, y - 11); ctx.lineTo(x, y + 13);
     ctx.stroke();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.font = '700 14px system-ui';
+    // 아이콘
+    ctx.font = '700 16px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('⚡', x, y + 1);
+    ctx.fillText(icon, x, y + 1);
+    // 핵폭탄은 추가 펄스 링
+    if (type === 'nuke') {
+      const pulse = 0.5 + Math.sin(Date.now() / 180) * 0.3;
+      ctx.strokeStyle = `rgba(255, 71, 87, ${pulse})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI * 2); ctx.stroke();
+    }
     ctx.restore();
   });
 }
@@ -2100,11 +2123,27 @@ function drawClouds() {
 }
 
 function drawSky() {
+  // 대륙별 기본 색
+  let top = '#070720', mid = '#0d1030', bot = '#2a1535';
+  const cont = state && state.continent;
+  if (cont === 'RU') { top = '#3a4660'; mid = '#5a6680'; bot = '#7a8aa0'; }            // 시베리아 회색 눈
+  else if (cont === 'CN') { top = '#5a3e1a'; mid = '#9a6a2a'; bot = '#d8a458'; }       // 사막 황색
+  else if (cont === 'KR') { top = '#0a1a30'; mid = '#1a3050'; bot = '#3a5a78'; }       // 한국 푸른
+  else if (cont === 'JP') { top = '#0e1a28'; mid = '#1c2c40'; bot = '#3c5060'; }       // 일본 청회색
+  else if (cont === 'US') { top = '#0d1d3a'; mid = '#1a2050'; bot = '#2a1535'; }       // 미국 (기본)
+  else if (cont === 'DE') { top = '#0d1030'; mid = '#1a1040'; bot = '#2a1535'; }       // 독일 (기본)
+  // 날씨 영향 (덮어쓰기)
+  if (state && state.weather) {
+    const wk = state.weather.kind;
+    if (wk === 'rain') { top = '#1a1d24'; mid = '#2a2d34'; bot = '#3a3d44'; }
+    else if (wk === 'snow') { top = '#5a6478'; mid = '#7080a0'; bot = '#a0b0c8'; }
+    else if (wk === 'typhoon') { top = '#0a0810'; mid = '#1a1418'; bot = '#3a2a30'; }
+    else if (wk === 'sandstorm') { top = '#6a4a20'; mid = '#a07040'; bot = '#d09858'; }
+  }
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0, '#070720');
-  grad.addColorStop(0.3, '#0d1030');
-  grad.addColorStop(0.7, '#1a1040');
-  grad.addColorStop(1, '#2a1535');
+  grad.addColorStop(0, top);
+  grad.addColorStop(0.5, mid);
+  grad.addColorStop(1, bot);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
@@ -2163,6 +2202,84 @@ function drawTerrain() {
   ctx.strokeStyle = 'rgba(123, 237, 159, 0.15)';
   ctx.lineWidth = 1;
   ctx.stroke();
+}
+
+// === 자연재해 입자 (비/눈/모래/태풍) ===
+let weatherParticles = [];
+function updateWeatherParticles() {
+  if (!state || !state.weather) { weatherParticles = []; return; }
+  const w = state.weather.kind;
+  const wind = state.wind || 0;
+  let target = 0;
+  if (w === 'rain') target = 120;
+  else if (w === 'snow') target = 80;
+  else if (w === 'sandstorm') target = 220;
+  else if (w === 'typhoon') target = 180;
+  while (weatherParticles.length < target) {
+    const p = { x: Math.random() * canvas.width, y: Math.random() * canvas.height * 0.8, kind: w };
+    if (w === 'rain') { p.vx = wind * 40 + 1; p.vy = 10 + Math.random() * 4; }
+    else if (w === 'typhoon') { p.vx = wind * 80 - 6 + Math.random() * 3; p.vy = 13 + Math.random() * 5; }
+    else if (w === 'snow') { p.vx = wind * 20 + (Math.random() - 0.5) * 1.5; p.vy = 1 + Math.random() * 2; p.size = 1 + Math.random() * 2; }
+    else if (w === 'sandstorm') { p.vx = 6 + Math.random() * 8; p.vy = (Math.random() - 0.5) * 3; p.size = 1 + Math.random() * 2; }
+    weatherParticles.push(p);
+  }
+  weatherParticles = weatherParticles.filter(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0) p.x += canvas.width;
+    if (p.x > canvas.width) p.x -= canvas.width;
+    return p.y < canvas.height + 10;
+  });
+}
+
+function drawWeatherParticles() {
+  if (!state || !state.weather) return;
+  weatherParticles.forEach(p => {
+    if (p.kind === 'rain' || p.kind === 'typhoon') {
+      ctx.strokeStyle = p.kind === 'typhoon' ? 'rgba(180, 200, 220, 0.85)' : 'rgba(180, 200, 220, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx * 0.7, p.y - p.vy * 0.7);
+      ctx.stroke();
+    } else if (p.kind === 'snow') {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.kind === 'sandstorm') {
+      ctx.fillStyle = `rgba(220, 180, 110, ${0.5 + Math.random() * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  // 모래바람 시야 좁힘 (본인 주변만 보임)
+  if (state.weather.kind === 'sandstorm') {
+    const me = state.players ? state.players[myId] : null;
+    if (me && me.alive) {
+      const grad = ctx.createRadialGradient(me.x, me.y - 10, 60, me.x, me.y - 10, 380);
+      grad.addColorStop(0, 'rgba(180, 130, 60, 0)');
+      grad.addColorStop(0.6, 'rgba(180, 130, 60, 0.4)');
+      grad.addColorStop(1, 'rgba(140, 90, 30, 0.78)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+      ctx.fillStyle = 'rgba(140, 90, 30, 0.45)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  // 자연재해 라벨
+  const wName = { rain: '🌧 폭우', snow: '❄️ 폭설', typhoon: '🌪 태풍', sandstorm: '🟡 모래바람' }[state.weather.kind];
+  if (wName) {
+    ctx.save();
+    ctx.font = '700 16px "Pretendard", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(canvas.width / 2 - 80, 6, 160, 28);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(wName, canvas.width / 2, 25);
+    ctx.restore();
+  }
 }
 
 // === DOT 지역 (우라늄=방사능 흘러내림, 화염탄=불) ===
@@ -2549,7 +2666,12 @@ function drawProjectile() {
   let projRadius = 4;
   let shape = 'circle'; // 'circle' | 'rod' | 'pellet' | 'finned'
 
-  if (isLaser) {
+  if (projectile.type === 'nuke') {
+    // 핵폭탄 — 매우 크고 빨간 점멸
+    const pulse = 0.7 + Math.sin(Date.now() / 100) * 0.3;
+    innerColor = '#FF4757'; outerColor = `rgba(255, 71, 87, ${pulse})`; glowColor = '#FF0000'; projRadius = 8;
+    shape = 'circle';
+  } else if (isLaser) {
     innerColor = '#FFD93D'; outerColor = 'rgba(255, 217, 61, 0.7)'; glowColor = '#FFA502'; projRadius = 5;
   } else if (isRedBean) {
     // BOMB2 — 탱크별 디자인
