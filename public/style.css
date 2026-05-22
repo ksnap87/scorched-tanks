@@ -24,7 +24,7 @@ body {
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: safe center;
+  align-items: flex-start;
   justify-content: center;
   overflow-y: auto;
   overflow-x: hidden;
@@ -34,6 +34,10 @@ body {
 
 #lobby::-webkit-scrollbar { width: 8px; }
 #lobby::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+.lobby-container {
+  margin: auto 0;
+}
 
 .lobby-container {
   text-align: center;
