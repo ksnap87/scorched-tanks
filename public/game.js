@@ -1401,6 +1401,7 @@ function render() {
   drawGuidedTrajectory();
   drawProjectile();
   drawLaserBeams();          // Leopard 2 직선 레이저
+  drawNukeMushroom();        // 핵폭탄 버섯구름 (폭발 전 시각)
   drawAirstrike();
   drawParticles();
   drawTrail();
@@ -1409,6 +1410,89 @@ function render() {
   updateParticles();
   updateClouds();
   updateWeatherParticles();
+}
+
+// === 핵폭탄 버섯구름 (mushroom phase = 솟아오름, explode phase = 잔여 빛) ===
+function drawNukeMushroom() {
+  if (!state || !state.nukeEffect) return;
+  const n = state.nukeEffect;
+  const now = Date.now();
+  const elapsed = now - n.startedAt;
+  const t = Math.max(0, Math.min(1, elapsed / (n.duration || 1500)));
+  ctx.save();
+  // 1) 명중 직후 흰 섬광 (0~150ms)
+  if (elapsed < 200) {
+    const flashA = Math.max(0, 1 - elapsed / 200);
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * flashA})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  // 2) 버섯구름 솟아오름
+  // 줄기 (지면 → 위로 점점 올라감, 시간에 따라 길어짐)
+  const stemH = 200 * t;
+  const stemW = 24 + 20 * t;
+  const baseY = n.y;
+  const topY = baseY - stemH;
+  // 줄기 그라데이션 (불 → 회색)
+  const stemGrad = ctx.createLinearGradient(n.x, baseY, n.x, topY);
+  stemGrad.addColorStop(0, 'rgba(255, 165, 2, 0.95)');
+  stemGrad.addColorStop(0.3, 'rgba(255, 100, 30, 0.9)');
+  stemGrad.addColorStop(0.7, 'rgba(120, 90, 70, 0.85)');
+  stemGrad.addColorStop(1, 'rgba(80, 70, 65, 0.75)');
+  ctx.fillStyle = stemGrad;
+  ctx.beginPath();
+  ctx.moveTo(n.x - stemW / 2, baseY);
+  ctx.bezierCurveTo(n.x - stemW * 0.7, baseY - stemH * 0.5, n.x - stemW * 0.4, baseY - stemH * 0.8, n.x - stemW * 0.5, topY);
+  ctx.lineTo(n.x + stemW * 0.5, topY);
+  ctx.bezierCurveTo(n.x + stemW * 0.4, baseY - stemH * 0.8, n.x + stemW * 0.7, baseY - stemH * 0.5, n.x + stemW / 2, baseY);
+  ctx.closePath();
+  ctx.fill();
+  // 머리 (구름) — 줄기 끝점에 큰 동그란 구름
+  const capR = 80 * t;
+  if (capR > 4) {
+    // 외곽 어두운 구름 베이스
+    const capGrad = ctx.createRadialGradient(n.x, topY - capR * 0.4, capR * 0.2, n.x, topY - capR * 0.4, capR);
+    capGrad.addColorStop(0, 'rgba(255, 180, 80, 0.92)');
+    capGrad.addColorStop(0.45, 'rgba(200, 120, 60, 0.9)');
+    capGrad.addColorStop(0.8, 'rgba(110, 95, 80, 0.8)');
+    capGrad.addColorStop(1, 'rgba(70, 65, 60, 0)');
+    ctx.fillStyle = capGrad;
+    // 여러 원으로 구름 모양 (4-5개 원)
+    const cloudCenters = [
+      { dx: 0, dy: -capR * 0.45, r: capR * 0.95 },
+      { dx: -capR * 0.55, dy: -capR * 0.25, r: capR * 0.75 },
+      { dx: capR * 0.55, dy: -capR * 0.25, r: capR * 0.75 },
+      { dx: -capR * 0.25, dy: -capR * 0.7, r: capR * 0.6 },
+      { dx: capR * 0.3, dy: -capR * 0.65, r: capR * 0.6 },
+    ];
+    for (const c of cloudCenters) {
+      ctx.beginPath();
+      ctx.arc(n.x + c.dx, topY + c.dy, c.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // 3) 폭발 phase — 큰 빨강 링 + 화이트 코어 펄스
+  if (n.phase === 'explode') {
+    const expT = Math.max(0, Math.min(1, (elapsed - (n.duration || 1500)) / 1000));
+    const ringR = 30 + expT * 240;
+    ctx.strokeStyle = `rgba(255, 100, 60, ${0.85 * (1 - expT)})`;
+    ctx.lineWidth = 6 * (1 - expT) + 1;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+    // 두 번째 링
+    ctx.strokeStyle = `rgba(255, 200, 100, ${0.6 * (1 - expT)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, ringR * 0.7, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // 4) 라벨 ☢️
+  ctx.font = '28px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = `rgba(255, 200, 60, ${0.8 * (1 - t * 0.3)})`;
+  ctx.fillText('☢️', n.x, topY - 30);
+  ctx.restore();
 }
 
 // === Leopard 2 직선 레이저 빔 (지형 관통) ===
@@ -1795,9 +1879,10 @@ function drawB2Spirit(a, elapsed, incoming, linger) {
   ctx.restore();
 
   // ===== 폭탄 일렬 투하 — 각 폭탄은 떨어진 시점 X에 고정 =====
+  // 좁은 카펫: 비행기가 targetX 통과 직전 ~ 직후 짧은 시간 안에 8발 모두 떨어뜨림 (좌우 대칭 분산)
   const bombCount = 8;
-  const dropWindowStart = incoming - 1000;   // 폭탄 투하 시작 시점
-  const dropWindowEnd = incoming - 50;       // 마지막 폭탄 투하 시점
+  const dropWindowStart = incoming - 220;    // targetX 도달 직전
+  const dropWindowEnd = incoming + 170;      // targetX 살짝 지난 시점
   const dropInterval = (dropWindowEnd - dropWindowStart) / (bombCount - 1);
   for (let i = 0; i < bombCount; i++) {
     const myDropStart = dropWindowStart + i * dropInterval;

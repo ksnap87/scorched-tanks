@@ -1412,18 +1412,25 @@ function startFire(room, player, weaponType, useDouble) {
         const startX_b = fromLeft ? -180 : mw + 180;
         const bombCount = 8;
         const incoming = AIRSTRIKE_INCOMING_MS;
-        const dropWindowStart = incoming - 1000;
-        const dropWindowEnd = incoming - 50;
+        const linger = AIRSTRIKE_LINGER_MS;
+        // 좁은 카펫: targetX 통과 직전 ~ 직후 짧은 시간에 8발 (클라 dropWindow 와 일치)
+        const dropWindowStart = incoming - 220;
+        const dropWindowEnd = incoming + 170;
         const dropInterval = (dropWindowEnd - dropWindowStart) / (bombCount - 1);
-        // 각 폭탄의 X 위치를 클라 jetXAt 공식과 정확히 일치하게 계산
+        // 각 폭탄의 X 위치를 클라 jetXAt 공식과 정확히 일치하게 계산 (도달 전/후 분기)
         function jetXAtServer(eAt) {
-          const t = eAt / incoming;
-          return startX_b + (detonateX - startX_b) * (1 - Math.pow(1 - t, 1.5));
+          if (eAt <= incoming) {
+            const t = eAt / incoming;
+            return startX_b + (detonateX - startX_b) * (1 - Math.pow(1 - t, 1.5));
+          } else {
+            const endX_b = fromLeft ? mw + 180 : -180;
+            const tAfter = Math.min(1, (eAt - incoming) / linger);
+            return detonateX + (endX_b - detonateX) * tAfter;
+          }
         }
-        // 폭탄 i 가 떨어진 시점 + 낙하 1500ms 후 폭발 → 폭발 시점이 시각상 폭탄이 지면에 닿는 시점
-        // sub-explosion 당 데미지/반경은 ult 의 ~25% (8발 분산되니 한 탱크가 보통 1~3발 맞음)
-        const subDamage = Math.max(8, Math.round(ult.damage * 0.5));
-        const subRadius = Math.max(12, Math.round(ult.radius * 0.55));
+        // sub-explosion 데미지/반경 — 좁은 카펫에 8발 몰리니 더 낮게 (한 탱크가 2~3발 맞아도 OP 안 됨)
+        const subDamage = Math.max(8, Math.round(ult.damage * 0.32));
+        const subRadius = Math.max(10, Math.round(ult.radius * 0.45));
         const fallMs = 1500;
         // ult.damage / radius 는 applyExplosion 의 ammo lookup 으로 사용되므로,
         // 일시적으로 player 의 가짜 tankDef 사용 대신 직접 폭발 호출
@@ -1474,6 +1481,32 @@ function startFire(room, player, weaponType, useDouble) {
         broadcastState(room);
         finishShot();
       }, AIRSTRIKE_INCOMING_MS + AIRSTRIKE_LINGER_MS);
+    } else if (proj.type === 'nuke') {
+      // 핵폭탄 — 버섯구름 시각 1.5초 → 폭발 + 큰 데미지 + 광역 지형 파괴
+      const NUKE_MUSHROOM_MS = 1500;
+      const groundY = getTerrainY(room.terrain, px);
+      room.nukeEffect = {
+        id: (room.nextNukeId = (room.nextNukeId || 0) + 1),
+        x: px,
+        y: groundY,
+        startedAt: Date.now(),
+        duration: NUKE_MUSHROOM_MS,
+        phase: 'mushroom',
+      };
+      broadcastState(room);
+      setTimeout(() => {
+        if (room.phase !== 'playing') { finishShot(); return; }
+        // 실제 폭발 (NUKE) — 데미지 + 지형 파괴
+        applyExplosion(room, px, groundY, 'nuke', finalSpeed, player);
+        if (room.nukeEffect) room.nukeEffect.phase = 'explode';
+        broadcastState(room);
+        // 폭발 잔여 시각 1초
+        setTimeout(() => {
+          room.nukeEffect = null;
+          broadcastState(room);
+          finishShot();
+        }, 1000);
+      }, NUKE_MUSHROOM_MS);
     } else {
       applyExplosion(room, px, py, proj.type, finalSpeed, player);
       broadcastState(room);
@@ -1697,6 +1730,7 @@ function broadcastState(room) {
     teamMode: !!room.teamMode,
     mapWidth: room.mapWidth || CANVAS_WIDTH,
     laserBeams: room.laserBeams || [],
+    nukeEffect: room.nukeEffect || null,
   });
 }
 
