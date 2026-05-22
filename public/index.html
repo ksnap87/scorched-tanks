@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=39">
+  <link rel="stylesheet" href="style.css?v=40">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -45,9 +45,9 @@
         <button class="btn-room" id="btnNewRoom" onclick="createNewRoom()">+ NEW ROOM</button>
       </div>
 
-      <div class="lobby-content">
-        <!-- 왼쪽: 플레이어 + 시작 -->
-        <div class="lobby-panel">
+      <div class="lobby-content lobby-3col">
+        <!-- 좌: 플레이어/팀모드/시작/단축키 -->
+        <div class="lobby-left">
           <div class="name-input-group">
             <input type="text" id="nameInput" placeholder="Enter your name..." maxlength="12" autocomplete="off">
             <button class="btn" style="padding: 12px 20px; font-size: 0.8rem; background: #1E90FF; color: #fff; border-radius: 10px;" onclick="setName()">SET</button>
@@ -58,15 +58,10 @@
             <div class="player-slots" id="playerSlots"></div>
           </div>
 
-          <div class="tank-select">
-            <h3>SELECT TANK</h3>
-            <div class="tank-grid" id="tankGrid"></div>
-          </div>
-
           <div class="team-mode-toggle">
             <label>
               <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
-              <span>⚔️ 팀전 모드 (실시간 + 장전속도 + 시즈모드)</span>
+              <span>⚔️ 팀전 모드</span>
             </label>
           </div>
 
@@ -87,7 +82,15 @@
           </div>
         </div>
 
-        <!-- 오른쪽: 채팅 -->
+        <!-- 중앙: 탱크 선택 (양옆 공간 활용) -->
+        <div class="lobby-center">
+          <div class="tank-select">
+            <h3>SELECT TANK</h3>
+            <div class="tank-grid" id="tankGrid"></div>
+          </div>
+        </div>
+
+        <!-- 우: 채팅 -->
         <div class="lobby-chat">
           <div class="lc-header">💬 CHAT</div>
           <div class="chat-messages" id="lobbyChatMessages"></div>
@@ -259,6 +262,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=39"></script>
+  <script src="game.js?v=40"></script>
 </body>
 </html>
