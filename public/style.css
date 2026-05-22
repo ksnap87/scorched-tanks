@@ -1410,30 +1410,43 @@ canvas {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   font-family: 'Rajdhani', 'Pretendard', sans-serif;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .spec-row .sr-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-  font-size: 0.85rem;
+  gap: 4px;
+  margin-bottom: 3px;
+  font-size: 0.78rem;
   font-weight: 700;
+  line-height: 1.25;
 }
 .spec-row .sr-desc {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: #888;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
+  line-height: 1.25;
 }
 .spec-row .sr-lines {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 8px;
-  font-size: 0.72rem;
+  grid-template-columns: 48px 1fr;
+  gap: 3px 6px;
+  font-size: 0.68rem;
   color: #ccc;
+  line-height: 1.3;
 }
-.spec-row .sr-lines .lbl { color: #888; }
+.spec-row .sr-lines .lbl {
+  color: #888;
+  white-space: nowrap;
+}
+.spec-row .sr-lines span:not(.lbl) {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
 .spec-row.me {
   background: rgba(30, 144, 255, 0.1);
   border-color: rgba(30, 144, 255, 0.4);
