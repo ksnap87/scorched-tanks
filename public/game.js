@@ -1304,7 +1304,8 @@ function drawAirstrike() {
   drawAirstrikeLabel(a, elapsed, incoming);
 
   switch (a.kind) {
-    case 'f22_carpet':      drawF22Carpet(a, elapsed, incoming, linger); break;
+    case 'b2_carpet':       drawB2Spirit(a, elapsed, incoming, linger); break;
+    case 'f22_carpet':      drawB2Spirit(a, elapsed, incoming, linger); break; // 기존 호환
     case 'army_missile':    drawKoreanArmy(a, elapsed, incoming, linger); break;
     case 'drone_grenade':   drawDroneGrenade(a, elapsed, incoming, linger); break;
     case 'kamikaze':        drawKamikaze(a, elapsed, incoming, linger); break;
@@ -1380,7 +1381,150 @@ function drawDefaultBomber(a, elapsed, incoming, linger) {
   }
 }
 
-// === 🇺🇸 F-22 융단폭격 (M1A2) — 빠른 제트기 + 여러 미사일 ===
+// === 🇺🇸 B-2 스피릿 스텔스 폭격기 (M1A2) — 플라잉윙 + 일렬 폭탄 투하 ===
+function drawB2Spirit(a, elapsed, incoming, linger) {
+  const fromLeft = a.targetX < canvas.width / 2;
+  const startX = fromLeft ? -180 : canvas.width + 180;
+  const endX = fromLeft ? canvas.width + 180 : -180;
+  let jetX;
+  if (elapsed <= incoming) {
+    const t = elapsed / incoming;
+    // 살짝 ease-out
+    jetX = startX + (a.targetX - startX) * (1 - Math.pow(1 - t, 1.5));
+  } else {
+    const tAfter = Math.min(1, (elapsed - incoming) / linger);
+    jetX = a.targetX + (endX - a.targetX) * tAfter;
+  }
+  const jetY = 55;
+  const sx = fromLeft ? 1 : -1;  // 진행 방향
+
+  ctx.save();
+  ctx.translate(jetX, jetY);
+  ctx.scale(sx, 1);
+
+  // 그림자
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(0, 14, 50, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ===== B-2 플라잉 윙 (위에서 본 모습, 박쥐 실루엣) =====
+  // 외곽 그라데이션 (어두운 회색)
+  const grad = ctx.createLinearGradient(0, -10, 0, 8);
+  grad.addColorStop(0, '#3a3f48');
+  grad.addColorStop(0.55, '#1a1d24');
+  grad.addColorStop(1, '#0e1015');
+  ctx.fillStyle = grad;
+
+  // 본체 외곽 (W형 플라잉 윙)
+  ctx.beginPath();
+  // 좌측 날개 끝
+  ctx.moveTo(-52, 2);
+  // 좌측 앞 가장자리 (뾰족)
+  ctx.lineTo(-38, -3);
+  ctx.lineTo(-22, -2);
+  ctx.lineTo(-10, -7);    // 가운데 V 시작 (앞쪽 안으로 굽음)
+  ctx.lineTo(0, -9);      // 가장 앞 꼭짓점 (뾰족)
+  ctx.lineTo(10, -7);
+  ctx.lineTo(22, -2);
+  ctx.lineTo(38, -3);
+  ctx.lineTo(52, 2);
+  // 우측 날개 끝
+  // 뒷면 — W 톱니 모양 (스텔스 특유)
+  ctx.lineTo(44, 6);
+  ctx.lineTo(34, 3);
+  ctx.lineTo(24, 7);
+  ctx.lineTo(14, 4);
+  ctx.lineTo(6, 8);       // 우측 뒤 톱니 끝
+  ctx.lineTo(-6, 8);      // 좌측 뒤 톱니 끝
+  ctx.lineTo(-14, 4);
+  ctx.lineTo(-24, 7);
+  ctx.lineTo(-34, 3);
+  ctx.lineTo(-44, 6);
+  ctx.closePath();
+  ctx.fill();
+
+  // 표면 패널 라인 (스텔스 곡선)
+  ctx.strokeStyle = 'rgba(120, 130, 150, 0.35)';
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-35, -2); ctx.lineTo(-15, -3);
+  ctx.moveTo(35, -2);  ctx.lineTo(15, -3);
+  ctx.moveTo(-20, 4); ctx.lineTo(20, 4);
+  ctx.stroke();
+
+  // 캐노피 (가운데 위쪽 작은 돔)
+  ctx.fillStyle = '#3a4658';
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 5.5, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(140, 180, 220, 0.5)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-5, -3); ctx.lineTo(5, -3);
+  ctx.stroke();
+
+  // 엔진 인테이크 (가운데 양옆)
+  ctx.fillStyle = '#06080c';
+  ctx.fillRect(-10, -1, 5, 2);
+  ctx.fillRect(5, -1, 5, 2);
+
+  // 폭탄 베이 (가운데 아래 — incoming 마지막에 열림)
+  const bayOpen = elapsed > incoming - 800 && elapsed < incoming + 400;
+  ctx.fillStyle = bayOpen ? '#1a1d24' : '#0a0c10';
+  ctx.fillRect(-6, 3, 12, 5);
+  if (bayOpen) {
+    ctx.fillStyle = '#FFA502';
+    ctx.fillRect(-5, 4, 10, 1);
+  }
+
+  ctx.restore();
+
+  // ===== 폭탄 일렬 투하 (수직 스택, 7~8개) =====
+  if (elapsed > incoming - 1100 && elapsed < incoming + 600) {
+    ctx.save();
+    const bombCount = 8;
+    const bombStartElapsed = incoming - 1100;
+    const dropDuration = 1500;
+    for (let i = 0; i < bombCount; i++) {
+      // 각 폭탄은 짧은 간격으로 떨어짐
+      const dropStartT = i * 130;
+      const localElapsed = elapsed - bombStartElapsed - dropStartT;
+      if (localElapsed < 0) continue;
+      const t = Math.min(1, localElapsed / dropDuration);
+      const bx = jetX;
+      // 가속 낙하
+      const fallY = (a.targetY - 5 - jetY) * (t * t);
+      const by = jetY + 10 + fallY;
+      if (by > a.targetY) continue;
+      // 폭탄 동체 (세로 회전 — 아래로 뾰족하게)
+      ctx.fillStyle = '#2a2d36';
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 2.3, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 뾰족한 노즈 (아래)
+      ctx.fillStyle = '#444';
+      ctx.beginPath();
+      ctx.moveTo(bx - 2.3, by + 3);
+      ctx.lineTo(bx, by + 6.5);
+      ctx.lineTo(bx + 2.3, by + 3);
+      ctx.closePath();
+      ctx.fill();
+      // 꼬리 핀 (4갈래)
+      ctx.fillStyle = '#5a6070';
+      ctx.beginPath();
+      ctx.moveTo(bx - 2.6, by - 5);
+      ctx.lineTo(bx - 3.5, by - 3);
+      ctx.lineTo(bx + 3.5, by - 3);
+      ctx.lineTo(bx + 2.6, by - 5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// === (기존) F-22 함수 — 호환용 alias (안 쓰이지만 남겨둠) ===
 function drawF22Carpet(a, elapsed, incoming, linger) {
   const fromLeft = a.targetX < canvas.width / 2;
   const startX = fromLeft ? -150 : canvas.width + 150;
@@ -1941,47 +2085,87 @@ function drawTerrain() {
   ctx.stroke();
 }
 
-// === 우라늄 오염 지역 ===
+// === 우라늄 오염 지역 — 지형 따라 흘러내림 ===
 function drawRadiationZones() {
   if (!state || !state.radiationZones || state.radiationZones.length === 0) return;
   const now = Date.now();
   state.radiationZones.forEach(z => {
     if (z.endsAt < now) return;
     const totalLife = (z.endsAt - z.startedAt) || 8000;
-    const lifeT = Math.max(0, (z.endsAt - now) / totalLife); // 1 → 0
-    const pulse = 0.5 + Math.sin(now / 220) * 0.4;
+    const lifeT = Math.max(0, (z.endsAt - now) / totalLife);
+    const pulse = 0.55 + Math.sin(now / 220) * 0.35;
     ctx.save();
-    // 외곽 글로우
-    ctx.fillStyle = `rgba(123, 237, 159, ${0.18 * lifeT})`;
+
+    // === 지형 따라 흘러내림 (내리막 방향으로 더 멀리, 시간 따라 확산) ===
+    const elapsed = now - z.startedAt;
+    // 시간 따라 점진 확산 (최대 radius*8 까지)
+    const baseSpread = Math.min(z.radius * 8, z.radius * 2 + (elapsed / 1000) * z.radius * 1.5);
+    // 좌/우 어느 쪽이 더 내리막인지 판단 (멀리 떨어진 지점 Y 비교)
+    const leftTY = getClientTerrainY(Math.max(0, z.x - 60));
+    const rightTY = getClientTerrainY(Math.min(canvas.width, z.x + 60));
+    const centerTY = getClientTerrainY(z.x);
+    // Y가 크면 낮은 지형 (canvas 좌표 하향)
+    const leftFlow = leftTY > centerTY ? 1.6 : (leftTY < centerTY ? 0.4 : 1.0);
+    const rightFlow = rightTY > centerTY ? 1.6 : (rightTY < centerTY ? 0.4 : 1.0);
+    const minX = Math.max(0, z.x - baseSpread * leftFlow);
+    const maxX = Math.min(canvas.width, z.x + baseSpread * rightFlow);
+    // 위쪽 윤곽 (지형 위 약간 띄움, 중심 두껍게)
     ctx.beginPath();
-    ctx.arc(z.x, z.y, z.radius * 1.6, 0, Math.PI * 2);
+    ctx.moveTo(minX, getClientTerrainY(minX));
+    const step = 3;
+    for (let xi = minX; xi <= maxX; xi += step) {
+      const ty = getClientTerrainY(xi);
+      const dx = Math.abs(xi - z.x);
+      // 중심에 가까울수록 두꺼움 (감쇠), 양 끝은 얇음
+      const ratio = Math.max(0, 1 - dx / flowRange);
+      const thickness = ratio * z.radius * 0.9 + 0.5;
+      // 약간의 wobble (액체스러움)
+      const wobble = Math.sin((xi + now * 0.03) / 8) * 1.2 * ratio;
+      ctx.lineTo(xi, ty - thickness + wobble);
+    }
+    // 아래쪽 — 지형 표면 따라 돌아옴
+    for (let xi = maxX; xi >= minX; xi -= step) {
+      ctx.lineTo(xi, getClientTerrainY(xi) + 0.5);
+    }
+    ctx.closePath();
+    // 메인 fill (펄스)
+    ctx.fillStyle = `rgba(46, 213, 115, ${0.45 * lifeT * pulse})`;
     ctx.fill();
-    // 메인 오염 (펄스)
-    ctx.fillStyle = `rgba(46, 213, 115, ${0.28 * lifeT * pulse})`;
-    ctx.beginPath();
-    ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-    ctx.fill();
-    // 점선 경계
-    ctx.strokeStyle = `rgba(46, 213, 115, ${0.85 * lifeT})`;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 4]);
-    ctx.beginPath();
-    ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+    // 외곽 글로우 stroke
+    ctx.strokeStyle = `rgba(123, 237, 159, ${0.55 * lifeT})`;
+    ctx.lineWidth = 1.2;
     ctx.stroke();
-    ctx.setLineDash([]);
-    // 중심 방사능 ☢ 표식 (rotating)
-    ctx.translate(z.x, z.y);
+
+    // === 중심 진한 펄스 (피해 영역 = z.radius 안) ===
+    ctx.fillStyle = `rgba(46, 213, 115, ${0.4 * lifeT * pulse})`;
+    ctx.beginPath();
+    ctx.arc(z.x, getClientTerrainY(z.x) - z.radius * 0.6, z.radius * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // === ☢ 표식 (회전, 중심 위) ===
+    const symY = getClientTerrainY(z.x) - z.radius * 0.6;
+    ctx.translate(z.x, symY);
     ctx.rotate(now / 800);
-    ctx.fillStyle = `rgba(255, 217, 61, ${0.7 * lifeT})`;
+    ctx.fillStyle = `rgba(255, 217, 61, ${0.8 * lifeT})`;
     for (let i = 0; i < 3; i++) {
       ctx.rotate(Math.PI * 2 / 3);
       ctx.beginPath();
       ctx.moveTo(0, -4);
-      ctx.arc(0, 0, 8, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5);
+      ctx.arc(0, 0, 9, -Math.PI / 2 - 0.55, -Math.PI / 2 + 0.55);
       ctx.closePath();
       ctx.fill();
     }
     ctx.restore();
+
+    // === 떨어지는 방울 입자 (액체 흘러내림) ===
+    if (Math.random() < 0.4 * lifeT) {
+      const px = z.x + (Math.random() - 0.5) * z.radius * 4;
+      const py = getClientTerrainY(px) - Math.random() * 4;
+      ctx.fillStyle = `rgba(46, 213, 115, ${0.7 * lifeT})`;
+      ctx.beginPath();
+      ctx.arc(px, py, 1 + Math.random() * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   });
 }
 
@@ -2287,7 +2471,7 @@ function drawProjectile() {
     // BOMB2 — 탱크별 디자인
     switch (tt) {
       case 'K2':    innerColor = '#FF4757'; outerColor = 'rgba(255,0,0,0.8)';    glowColor = '#FF0000'; projRadius = 3; break;                  // 빨콩
-      case 'M1A2':  innerColor = '#8B6F47'; outerColor = 'rgba(255,165,2,0.7)';  glowColor = '#FFA502'; projRadius = 3; shape = 'pellet'; break; // 멀티 펠릿
+      case 'M1A2':  innerColor = '#3a2e1f'; outerColor = 'rgba(255,165,2,0.85)'; glowColor = '#FFA502'; projRadius = 3; shape = 'multi4'; break; // 멀티탄 4발 일렬
       case 'T90':   innerColor = '#7BED9F'; outerColor = 'rgba(46,213,115,0.8)'; glowColor = '#2ED573'; projRadius = 4; break;                  // 우라늄 (방사능 녹색)
       case 'T10':   innerColor = '#fff';    outerColor = 'rgba(124,196,255,0.8)'; glowColor = '#7CC4FF'; projRadius = 4; shape = 'rod'; break;   // 유도탄 (흰 막대)
       case 'ZTZ99': innerColor = '#FFD93D'; outerColor = 'rgba(255,165,2,0.7)';  glowColor = '#FFA502'; projRadius = 4; break;                  // 샷건 핀
@@ -2319,6 +2503,32 @@ function drawProjectile() {
     ctx.strokeStyle = outerColor;
     ctx.lineWidth = 1;
     ctx.strokeRect(-projRadius * 2, -projRadius * 0.4, projRadius * 4, projRadius * 0.8);
+  } else if (shape === 'multi4') {
+    // 미국 멀티탄 — 진행 방향 따라 4발 일렬 배치
+    const ang = Math.atan2(projectile.vy || 0, projectile.vx || 1);
+    const fwdX = Math.cos(ang);
+    const fwdY = Math.sin(ang);
+    const offsets = [-15, -5, 5, 15];
+    offsets.forEach(off => {
+      const gx = projectile.x + fwdX * off;
+      const gy = projectile.y + fwdY * off;
+      // 본체
+      ctx.fillStyle = innerColor;
+      ctx.beginPath();
+      ctx.arc(gx, gy, projRadius, 0, Math.PI * 2);
+      ctx.fill();
+      // 외곽 글로우
+      ctx.strokeStyle = outerColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(gx, gy, projRadius + 2, 0, Math.PI * 2);
+      ctx.stroke();
+      // 작은 핀 (꼬리)
+      ctx.fillStyle = '#FFA502';
+      ctx.beginPath();
+      ctx.arc(gx - fwdX * (projRadius + 1.5), gy - fwdY * (projRadius + 1.5), 1, 0, Math.PI * 2);
+      ctx.fill();
+    });
   } else if (shape === 'pellet') {
     // 멀티탄 펠릿 (3개 작은 점이 모인 모양)
     ctx.beginPath(); ctx.arc(projectile.x - 2, projectile.y - 1, projRadius * 0.75, 0, Math.PI * 2); ctx.fill();
@@ -2347,31 +2557,6 @@ function drawProjectile() {
     ctx.beginPath(); ctx.arc(projectile.x, projectile.y, projRadius + 3, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
-
-  // M1A2 멀티탄 — 옆/뒤로 동반 펠릿 3개 추가 (총 4발이 분산되어 날아가는 듯한 시각)
-  if (isRedBean && tt === 'M1A2' && projectile.vx != null) {
-    const ang = Math.atan2(projectile.vy, projectile.vx);
-    const perpX = -Math.sin(ang);
-    const perpY = Math.cos(ang);
-    const ghosts = [
-      { off: -1, behind: 0.0 },
-      { off:  1, behind: 0.0 },
-      { off: -2, behind: 0.8 },
-      { off:  2, behind: 0.8 },
-    ];
-    ghosts.forEach(g => {
-      const gx = projectile.x + perpX * g.off * 4 - projectile.vx * g.behind;
-      const gy = projectile.y + perpY * g.off * 4 - projectile.vy * g.behind;
-      ctx.save();
-      ctx.shadowColor = glowColor;
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = '#8B6F47';
-      ctx.beginPath();
-      ctx.arc(gx, gy, projRadius * 0.75, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-  }
 
   // T-90 우라늄탄 — 방사능 꼬리 (녹색 점 2개)
   if (isRedBean && tt === 'T90' && projectile.vx != null) {

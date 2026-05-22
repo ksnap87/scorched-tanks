@@ -246,7 +246,7 @@ const TANK_TYPES = {
            desc: '중장갑 멀티탄',
            ammo:  { kind: 'HE',     radius: 15, damage: 40 },
            bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 10, radius: 4, range: 1.0, multi: 4, multiSpreadPx: 28, subDamageRatio: 1.0 },
-           ultimate: { kind: 'f22_carpet',      name: 'F-22 융단폭격', damage: 50, radius: 50, terrainRadius: 20 } },
+           ultimate: { kind: 'b2_carpet',       name: 'B-2 스피릿',    damage: 50, radius: 50, terrainRadius: 20 } },
   T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺',
            hp: 130, range: 1.2, move: 130, speed: 1.0, moveSpeed: 1.3,
            desc: '우라늄탄 DOT',
@@ -524,11 +524,20 @@ function spawnItemBox(room) {
   }
   const x = 220 + Math.random() * (CANVAS_WIDTH - 440);
   const y = 100 + Math.random() * 130;
+  // 박스 타입 — 8턴 이전엔 laser/repair만, 8턴 이후 nuke 일정 확률로 등장
+  const turnsPassed = room.turnsTotal || 0;
+  const r = Math.random();
+  let type;
+  if (turnsPassed >= 8 && r >= 0.85) type = 'nuke';        // 15% (8턴 이후만)
+  else if (r < 0.55) type = 'laser';
+  else type = 'repair';
   room.itemBoxes.push({
     id: room.nextItemBoxId++,
     x, y,
-    type: 'laser',
+    type,
     wobblePhase: Math.random() * Math.PI * 2,
+    spawnedAt: Date.now(),       // 클라가 비행기 떨어뜨리는 애니메이션 시작점
+    dropFromY: -30 - Math.random() * 30,  // 시작 y (하늘 위)
   });
   broadcastState(room);
   room.itemSpawnTimer = setTimeout(() => spawnItemBox(room), ITEM_BOX_RESPAWN);
@@ -623,6 +632,8 @@ function nextTurnInner(room) {
     active.doubleShotPending = false;
   }
 
+  room.turnsTotal = (room.turnsTotal || 0) + 1;
+
   resetTurnTimer(room);
   broadcastState(room);
 }
@@ -638,7 +649,12 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   let maxDamage = PROJECTILE_DAMAGE;
   let terrainRadius = null; // 명시 안 하면 radius 사용
 
-  if (weaponType === 'redbean') {
+  if (weaponType === 'nuke') {
+    // 핵폭탄 — 광역 파괴
+    radius = 200;
+    maxDamage = 200;
+    terrainRadius = 200;
+  } else if (weaponType === 'redbean') {
     // REDBEAN 자리 = 탱크별 bomb2
     if (shooter) {
       const tankDef = getTankDef(shooter.tankType);
@@ -1005,10 +1021,15 @@ function startFire(room, player, weaponType, useDouble) {
     p.x += p.vx;
     p.y += p.vy;
 
+    // 좌우 wrap (랩어라운드)
+    if (p.x < 0) p.x += CANVAS_WIDTH;
+    else if (p.x >= CANVAS_WIDTH) p.x -= CANVAS_WIDTH;
+
     const px = p.x;
     const py = p.y;
 
-    if (px < -50 || px > CANVAS_WIDTH + 50 || py > CANVAS_HEIGHT + 50) {
+    // 아래로만 종료 (좌우는 wrap)
+    if (py > CANVAS_HEIGHT + 50) {
       room.projectile = null;
       clearInterval(simInterval);
       broadcastState(room);
@@ -1031,9 +1052,15 @@ function startFire(room, player, weaponType, useDouble) {
       if (dist < HIT_R) {
         room.itemBoxes.splice(i, 1);
         const shooter = room.players[p.shooterId];
-        if (shooter && box.type === 'laser') {
-          shooter.laserShots = (shooter.laserShots ?? 0) + 1;
-          io.to(room.id).emit('itemPickup', { playerId: shooter.id, playerName: shooter.name, type: 'laser' });
+        if (shooter) {
+          if (box.type === 'laser') {
+            shooter.laserShots = (shooter.laserShots ?? 0) + 1;
+          } else if (box.type === 'repair') {
+            shooter.repairKits = (shooter.repairKits ?? 0) + 1;
+          } else if (box.type === 'nuke') {
+            shooter.nukeShots = (shooter.nukeShots ?? 0) + 1;
+          }
+          io.to(room.id).emit('itemPickup', { playerId: shooter.id, playerName: shooter.name, type: box.type });
         }
         room.explosions.push({ x: box.x, y: box.y, radius: 24, time: Date.now(), kind: 'box' });
         room.projectile = null;
@@ -1278,7 +1305,7 @@ io.on('connection', (socket) => {
     doubleShots: STARTING_DOUBLE_SHOTS,
     doubleShotPending: false,
     laserShots: 0,
-    repairKits: 1,
+    repairKits: 0,
     kills: 0,
     damageDealt: 0,
   };
@@ -1322,7 +1349,7 @@ io.on('connection', (socket) => {
         r.players[id].doubleShots = STARTING_DOUBLE_SHOTS;
         r.players[id].doubleShotPending = false;
         r.players[id].laserShots = 0;
-        r.players[id].repairKits = 1;
+        r.players[id].repairKits = 0;
         r.players[id].moveBudget = tankDef.move;
         r.players[id].kills = 0;
         r.players[id].damageDealt = 0;
@@ -1362,8 +1389,11 @@ io.on('connection', (socket) => {
     const moveSpeedMul = tankDef.moveSpeed || 1.0;
     const dir = direction < 0 ? -1 : 1;
     const desiredStep = Math.min(5 * moveSpeedMul, player.moveBudget);
-    const newX = Math.max(20, Math.min(CANVAS_WIDTH - 20, player.x + dir * desiredStep));
-    const actualStep = Math.abs(newX - player.x);
+    let newX = player.x + dir * desiredStep;
+    // 랩어라운드 — 좌우 끝 연결
+    if (newX < 0) newX += CANVAS_WIDTH;
+    else if (newX >= CANVAS_WIDTH) newX -= CANVAS_WIDTH;
+    const actualStep = desiredStep;
     if (actualStep === 0) return;
 
     player.x = newX;
@@ -1393,8 +1423,10 @@ io.on('connection', (socket) => {
 
     const dir = direction < 0 ? -1 : 1;
     const desiredStep = Math.min(requestedDist, player.moveBudget);
-    const newX = Math.max(20, Math.min(CANVAS_WIDTH - 20, player.x + dir * desiredStep));
-    const actualStep = Math.abs(newX - player.x);
+    let newX = player.x + dir * desiredStep;
+    if (newX < 0) newX += CANVAS_WIDTH;
+    else if (newX >= CANVAS_WIDTH) newX -= CANVAS_WIDTH;
+    const actualStep = desiredStep;
     if (actualStep === 0) return;
 
     player.x = newX;
