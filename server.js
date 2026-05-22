@@ -228,12 +228,18 @@ const TANK_NAMES = [
 //   - multi: 메인 폭발 후 좌우 추가 sub-폭발 개수 (포트리스 멀티탄)
 //   - pierce: APFSDS류 직격 시 운동에너지 추가 배수
 const TANK_TYPES = {
-  K2:    { id: 'K2',    name: 'K2 흑표',         country: '한국',   flag: '🇰🇷', hp: 100, range: 1.0, move: 200, speed: 1.0, desc: '균형 HE',           ammo: { kind: 'HE',     radius: 35, damage: 35 } },
-  M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸', hp: 140, range: 1.0, move: 120, speed: 1.0, desc: '중장갑 / 큰폭발',   ammo: { kind: 'HEAT',   radius: 48, damage: 36 } },
-  ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳', hp:  80, range: 0.8, move: 280, speed: 1.0, desc: '멀티탄 (3발 분산)', ammo: { kind: 'MULTI',  radius: 26, damage: 24, multi: 3, multiSpread: 1.3, subDamageRatio: 0.55 } },
-  T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺', hp: 100, range: 0.8, move: 200, speed: 1.2, desc: '속사 AP',           ammo: { kind: 'AP',     radius: 26, damage: 42 } },
-  LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪', hp: 100, range: 1.4, move: 120, speed: 1.0, desc: '장거리 APFSDS',     ammo: { kind: 'APFSDS', radius: 22, damage: 44, pierce: 1.25 } },
-  T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵', hp:  70, range: 1.0, move: 240, speed: 1.1, desc: '경량 속사 / 정밀',  ammo: { kind: 'FastHE', radius: 30, damage: 34 } },
+  K2:    { id: 'K2',    name: 'K2 흑표',         country: '한국',   flag: '🇰🇷', hp: 100, range: 1.0, move: 200, speed: 1.0, desc: '균형 HE',           ammo: { kind: 'HE',     radius: 35, damage: 35 },
+           ultimate: { kind: 'army_missile',  name: '한화 유도탄',   damage: 70, radius: 10, terrainRadius: 15 } },
+  M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸', hp: 140, range: 1.0, move: 120, speed: 1.0, desc: '중장갑 / 큰폭발',   ammo: { kind: 'HEAT',   radius: 48, damage: 36 },
+           ultimate: { kind: 'f22_carpet',    name: 'F-22 융단폭격', damage: 50, radius: 50, terrainRadius: 20 } },
+  ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳', hp:  80, range: 0.8, move: 280, speed: 1.0, desc: '멀티탄 (3발 분산)', ammo: { kind: 'MULTI',  radius: 26, damage: 24, multi: 3, multiSpread: 1.3, subDamageRatio: 0.55 },
+           ultimate: { kind: 'satellite_laser', name: '위성 레이저', damage: 80, radius: 5,  terrainRadius: 30 } },
+  T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺', hp: 100, range: 0.8, move: 200, speed: 1.2, desc: '속사 AP',           ammo: { kind: 'AP',     radius: 26, damage: 42 },
+           ultimate: { kind: 'drone_grenade', name: '드론 수류탄',   damage: 20, radius: 5,  terrainRadius: 5 } },
+  LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪', hp: 100, range: 1.4, move: 120, speed: 1.0, desc: '장거리 APFSDS',     ammo: { kind: 'APFSDS', radius: 22, damage: 44, pierce: 1.25 },
+           ultimate: { kind: 'default',       name: 'Air Strike',    damage: 70, radius: 90, terrainRadius: 90 } },
+  T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵', hp:  70, range: 1.0, move: 240, speed: 1.1, desc: '경량 속사 / 정밀',  ammo: { kind: 'FastHE', radius: 30, damage: 34 },
+           ultimate: { kind: 'kamikaze',      name: '카미카제',      damage: 40, radius: 20, terrainRadius: 20 } },
 };
 const DEFAULT_TANK = 'K2';
 function getTankDef(id) { return TANK_TYPES[id] || TANK_TYPES[DEFAULT_TANK]; }
@@ -566,13 +572,27 @@ const SPEED_REF = 15;          // 이 속도(px/frame)일 때 운동에너지 �
 function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = null, shooter = null, isSubExplosion = false) {
   let radius = EXPLOSION_RADIUS;
   let maxDamage = PROJECTILE_DAMAGE;
+  let terrainRadius = null; // 명시 안 하면 radius 사용
 
   if (weaponType === 'redbean') {
     radius = 15;
     maxDamage = 80;
   } else if (weaponType === 'laser_guided') {
-    radius = LASER_RADIUS;
-    maxDamage = LASER_DAMAGE;
+    // 탱크별 ULTIMATE 차별
+    if (shooter) {
+      const tankDef = getTankDef(shooter.tankType);
+      if (tankDef.ultimate) {
+        radius = tankDef.ultimate.radius;
+        maxDamage = tankDef.ultimate.damage;
+        terrainRadius = tankDef.ultimate.terrainRadius;
+      } else {
+        radius = LASER_RADIUS;
+        maxDamage = LASER_DAMAGE;
+      }
+    } else {
+      radius = LASER_RADIUS;
+      maxDamage = LASER_DAMAGE;
+    }
   } else if (weaponType === 'normal' && shooter) {
     // 탱크별 NORMAL 포탄 차별
     const tankDef = getTankDef(shooter.tankType);
@@ -603,11 +623,13 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     }
   }
 
+  // 지형 파괴는 별도 반경 (terrainRadius)으로 — 데미지 반경과 분리
+  const tRadius = terrainRadius != null ? terrainRadius : radius;
   for (let i = 0; i < room.terrain.length; i++) {
     const tx = i * TERRAIN_RESOLUTION;
     const dx = tx - x;
-    if (Math.abs(dx) < radius) {
-      const dy = Math.sqrt(radius * radius - dx * dx);
+    if (Math.abs(dx) < tRadius) {
+      const dy = Math.sqrt(tRadius * tRadius - dx * dx);
       const terrainY = room.terrain[i];
       if (y - dy < terrainY) {
         room.terrain[i] = Math.min(CANVAS_HEIGHT, terrainY + dy * 0.7);
@@ -775,6 +797,8 @@ function startFire(room, player, weaponType, useDouble) {
     // 명중 직전 포탄의 최종 속력 (운동에너지 데미지 계산용)
     const finalSpeed = Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy);
     if (proj.type === 'laser_guided') {
+      const shooterTankDef = getTankDef(player.tankType);
+      const ult = shooterTankDef.ultimate || { kind: 'default' };
       room.airstrike = {
         targetX: px,
         targetY: py,
@@ -782,6 +806,10 @@ function startFire(room, player, weaponType, useDouble) {
         incomingMs: AIRSTRIKE_INCOMING_MS,
         lingerMs: AIRSTRIKE_LINGER_MS,
         phase: 'incoming',
+        kind: ult.kind,
+        tankType: player.tankType,
+        tankFlag: shooterTankDef.flag,
+        ultName: ult.name,
       };
       broadcastState(room);
       setTimeout(() => {

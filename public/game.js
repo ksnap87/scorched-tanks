@@ -1260,99 +1260,373 @@ function drawAirstrike() {
   const elapsed = Date.now() - a.startTime;
   const incoming = a.incomingMs || 1800;
   const linger = a.lingerMs || 1500;
-  const total = incoming + linger;
-  if (elapsed > total + 500) return;
+  if (elapsed > incoming + linger + 500) return;
 
-  if (elapsed < incoming + 200) {
-    const pulse = 0.4 + Math.sin(elapsed / 70) * 0.45;
-    ctx.save();
-    ctx.strokeStyle = `rgba(255, 71, 87, ${pulse})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(a.targetX, a.targetY - 5, 55, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(a.targetX, a.targetY - 5, 35, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(a.targetX - 65, a.targetY - 5);
-    ctx.lineTo(a.targetX - 25, a.targetY - 5);
-    ctx.moveTo(a.targetX + 25, a.targetY - 5);
-    ctx.lineTo(a.targetX + 65, a.targetY - 5);
-    ctx.moveTo(a.targetX, a.targetY - 70);
-    ctx.lineTo(a.targetX, a.targetY - 30);
-    ctx.moveTo(a.targetX, a.targetY + 20);
-    ctx.lineTo(a.targetX, a.targetY + 60);
-    ctx.stroke();
-    ctx.restore();
+  drawAirstrikeMarker(a, elapsed, incoming);
+  drawAirstrikeLabel(a, elapsed, incoming);
+
+  switch (a.kind) {
+    case 'f22_carpet':      drawF22Carpet(a, elapsed, incoming, linger); break;
+    case 'army_missile':    drawKoreanArmy(a, elapsed, incoming, linger); break;
+    case 'drone_grenade':   drawDroneGrenade(a, elapsed, incoming, linger); break;
+    case 'kamikaze':        drawKamikaze(a, elapsed, incoming, linger); break;
+    case 'satellite_laser': drawSatelliteLaser(a, elapsed, incoming, linger); break;
+    default:                drawDefaultBomber(a, elapsed, incoming, linger); break;
   }
+}
 
+function drawAirstrikeMarker(a, elapsed, incoming) {
+  if (elapsed >= incoming + 200) return;
+  const pulse = 0.4 + Math.sin(elapsed / 70) * 0.45;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 71, 87, ${pulse})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(a.targetX, a.targetY - 5, 55, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(a.targetX, a.targetY - 5, 35, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(a.targetX - 65, a.targetY - 5); ctx.lineTo(a.targetX - 25, a.targetY - 5);
+  ctx.moveTo(a.targetX + 25, a.targetY - 5); ctx.lineTo(a.targetX + 65, a.targetY - 5);
+  ctx.moveTo(a.targetX, a.targetY - 70); ctx.lineTo(a.targetX, a.targetY - 30);
+  ctx.moveTo(a.targetX, a.targetY + 20); ctx.lineTo(a.targetX, a.targetY + 60);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawAirstrikeLabel(a, elapsed, incoming) {
+  if (elapsed > incoming + 600) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, elapsed / 400);
+  ctx.font = '700 14px "Pretendard", "Noto Sans KR", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(a.targetX - 80, 12, 160, 26);
+  ctx.fillStyle = '#FFD93D';
+  ctx.fillText(`${a.tankFlag || ''} ${a.ultName || 'AIR STRIKE'}`, a.targetX, 30);
+  ctx.restore();
+}
+
+// === 기본 폭격기 (LEO2 / default) ===
+function drawDefaultBomber(a, elapsed, incoming, linger) {
   const fromLeft = a.targetX < canvas.width / 2;
   const startX = fromLeft ? -120 : canvas.width + 120;
   const endX = fromLeft ? canvas.width + 120 : -120;
   let bomberX;
   if (elapsed <= incoming) {
     const t = elapsed / incoming;
-    const k = 1 - Math.pow(1 - t, 2);
-    bomberX = startX + (a.targetX - startX) * k;
+    bomberX = startX + (a.targetX - startX) * (1 - Math.pow(1 - t, 2));
   } else {
     const tAfter = Math.min(1, (elapsed - incoming) / linger);
     bomberX = a.targetX + (endX - a.targetX) * tAfter;
   }
   const bomberY = 70;
-
   ctx.save();
   ctx.translate(bomberX, bomberY);
   if (!fromLeft) ctx.scale(-1, 1);
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.beginPath();
-  ctx.ellipse(0, 8, 28, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 8, 28, 4, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#3a3a55';
-  ctx.beginPath();
-  ctx.moveTo(-28, 0);
-  ctx.lineTo(20, -5);
-  ctx.lineTo(34, 0);
-  ctx.lineTo(20, 5);
-  ctx.closePath();
-  ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-28, 0); ctx.lineTo(20, -5); ctx.lineTo(34, 0); ctx.lineTo(20, 5); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#2c2c44';
-  ctx.beginPath();
-  ctx.moveTo(-5, -3);
-  ctx.lineTo(8, -16);
-  ctx.lineTo(14, -16);
-  ctx.lineTo(6, -3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(-25, -1);
-  ctx.lineTo(-30, -12);
-  ctx.lineTo(-22, -12);
-  ctx.lineTo(-18, -1);
-  ctx.closePath();
-  ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-5, -3); ctx.lineTo(8, -16); ctx.lineTo(14, -16); ctx.lineTo(6, -3); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-25, -1); ctx.lineTo(-30, -12); ctx.lineTo(-22, -12); ctx.lineTo(-18, -1); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#7CC4FF';
-  ctx.beginPath();
-  ctx.ellipse(8, -3, 6, 2.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  if (Math.floor(elapsed / 200) % 2 === 0) {
-    ctx.fillStyle = '#FF4757';
-    ctx.beginPath();
-    ctx.arc(-22, -1, 1.6, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.beginPath(); ctx.ellipse(8, -3, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
-
   if (elapsed > incoming - 300 && elapsed < incoming + 100) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 217, 61, 0.7)';
+    ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(a.targetX, bomberY + 6); ctx.lineTo(a.targetX, a.targetY - 5); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  }
+}
+
+// === 🇺🇸 F-22 융단폭격 (M1A2) — 빠른 제트기 + 여러 미사일 ===
+function drawF22Carpet(a, elapsed, incoming, linger) {
+  const fromLeft = a.targetX < canvas.width / 2;
+  const startX = fromLeft ? -150 : canvas.width + 150;
+  const endX = fromLeft ? canvas.width + 150 : -150;
+  let jetX;
+  if (elapsed <= incoming) {
+    const t = elapsed / incoming;
+    jetX = startX + (a.targetX - startX) * t;
+  } else {
+    const tAfter = Math.min(1, (elapsed - incoming) / linger);
+    jetX = a.targetX + (endX - a.targetX) * tAfter;
+  }
+  const jetY = 55;
+  // F-22 본체 (날카로운 화살 모양)
+  ctx.save();
+  ctx.translate(jetX, jetY);
+  if (!fromLeft) ctx.scale(-1, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(0, 10, 32, 3, 0, 0, Math.PI * 2); ctx.fill();
+  // 날개
+  ctx.fillStyle = '#5a6878';
+  ctx.beginPath();
+  ctx.moveTo(-12, 0); ctx.lineTo(-22, 8); ctx.lineTo(-2, 4); ctx.lineTo(22, 8); ctx.lineTo(12, 0);
+  ctx.closePath(); ctx.fill();
+  // 본체
+  ctx.fillStyle = '#2c3540';
+  ctx.beginPath();
+  ctx.moveTo(-34, 0); ctx.lineTo(-18, -3); ctx.lineTo(28, -2); ctx.lineTo(36, 0); ctx.lineTo(28, 2); ctx.lineTo(-18, 3);
+  ctx.closePath(); ctx.fill();
+  // 캐노피
+  ctx.fillStyle = '#9bd0ff';
+  ctx.beginPath(); ctx.ellipse(14, -2, 5, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+  // 노즐 화염
+  if (elapsed < incoming) {
+    ctx.fillStyle = `rgba(255, 165, 2, ${0.7 + Math.random() * 0.3})`;
+    ctx.beginPath(); ctx.moveTo(-36, -1); ctx.lineTo(-44 - Math.random() * 6, 0); ctx.lineTo(-36, 1); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  // 융단폭격 미사일 라인 (좌우 여러 개)
+  if (elapsed > incoming - 400 && elapsed < incoming + 200) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 200, 0, 0.85)';
     ctx.lineWidth = 2;
-    ctx.setLineDash([4, 4]);
+    const spread = 60;
+    for (let i = -3; i <= 3; i++) {
+      const px = a.targetX + i * (spread / 3);
+      const progress = Math.max(0, Math.min(1, (elapsed - (incoming - 400)) / 500 - Math.abs(i) * 0.05));
+      const py = jetY + (a.targetY - 5 - jetY) * progress;
+      ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFD93D';
+      ctx.beginPath();
+      ctx.moveTo(px, py - 5); ctx.lineTo(px - 1.5, py + 3); ctx.lineTo(px + 1.5, py + 3); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// === 🇰🇷 한화 유도탄 — 좌우에서 육군 등장 → 미사일 발사 (K2) ===
+function drawKoreanArmy(a, elapsed, incoming, linger) {
+  const fromLeft = a.targetX > canvas.width / 2; // 반대편에서 옴 (목표 향해)
+  const groundY = state ? Math.min(canvas.height - 30, getClientTerrainY(a.targetX < canvas.width / 2 ? 100 : canvas.width - 100)) : canvas.height - 50;
+  const startX = fromLeft ? -50 : canvas.width + 50;
+  const stopX = fromLeft ? 120 : canvas.width - 120;
+  let soldierX;
+  if (elapsed <= incoming) {
+    const t = Math.min(1, elapsed / (incoming - 200));
+    soldierX = startX + (stopX - startX) * t;
+  } else {
+    soldierX = stopX;
+  }
+  // 군인 도형 (헬멧 + 몸 + 다리 — 걷는 애니메이션)
+  ctx.save();
+  ctx.translate(soldierX, groundY);
+  if (!fromLeft) ctx.scale(-1, 1);
+  // 몸
+  ctx.fillStyle = '#3a5a3a';
+  ctx.fillRect(-4, -16, 8, 12);
+  // 헬멧
+  ctx.fillStyle = '#2c4a2c';
+  ctx.beginPath(); ctx.arc(0, -20, 5, Math.PI, 0); ctx.fill();
+  ctx.fillRect(-5, -20, 10, 2);
+  // 다리 (걷는 애니메이션)
+  const walkPhase = Math.sin(elapsed / 100) * 2;
+  ctx.fillStyle = '#2a3a2a';
+  ctx.fillRect(-3, -4, 2, 6 + walkPhase);
+  ctx.fillRect(1, -4, 2, 6 - walkPhase);
+  // 미사일 발사기 (어깨)
+  ctx.fillStyle = '#444';
+  ctx.fillRect(4, -14, 14, 3);
+  ctx.restore();
+
+  // 미사일 발사 (incoming 마지막에)
+  if (elapsed > incoming - 400 && elapsed < incoming + 100) {
+    const t = Math.max(0, Math.min(1, (elapsed - (incoming - 400)) / 400));
+    const launchX = fromLeft ? soldierX + 18 : soldierX - 18;
+    const launchY = groundY - 13;
+    const mx = launchX + (a.targetX - launchX) * t;
+    const my = launchY + (a.targetY - 5 - launchY) * t;
+    // 미사일 본체
+    ctx.save();
+    const angle = Math.atan2(a.targetY - 5 - launchY, a.targetX - launchX);
+    ctx.translate(mx, my); ctx.rotate(angle);
+    ctx.fillStyle = '#FFA502';
+    ctx.fillRect(-8, -2, 14, 4);
+    ctx.fillStyle = '#FF4757';
+    ctx.beginPath(); ctx.moveTo(6, -2); ctx.lineTo(12, 0); ctx.lineTo(6, 2); ctx.closePath(); ctx.fill();
+    // 화염 꼬리
+    ctx.fillStyle = `rgba(255, 165, 2, ${0.7 + Math.random() * 0.3})`;
+    ctx.beginPath(); ctx.moveTo(-8, -1); ctx.lineTo(-14 - Math.random() * 5, 0); ctx.lineTo(-8, 1); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function getClientTerrainY(x) {
+  if (!state || !state.terrain) return canvas.height - 100;
+  const idx = Math.floor(x / 2);
+  if (idx < 0) return state.terrain[0];
+  if (idx >= state.terrain.length) return state.terrain[state.terrain.length - 1];
+  return state.terrain[idx];
+}
+
+// === 🇷🇺 드론 수류탄 (T90) — 작은 쿼드콥터가 타겟 위에 떠서 수류탄 떨어뜨림 ===
+function drawDroneGrenade(a, elapsed, incoming, linger) {
+  const droneStartY = -30;
+  const droneTargetY = a.targetY - 80;
+  let droneY;
+  if (elapsed <= incoming - 300) {
+    const t = elapsed / (incoming - 300);
+    droneY = droneStartY + (droneTargetY - droneStartY) * t;
+  } else if (elapsed <= incoming + 500) {
+    droneY = droneTargetY + Math.sin((elapsed - incoming) / 100) * 3;
+  } else {
+    const tAway = Math.min(1, (elapsed - incoming - 500) / linger);
+    droneY = droneTargetY - 100 * tAway;
+  }
+  const droneX = a.targetX;
+  // 드론 본체 (작은 검정 네모)
+  ctx.save();
+  ctx.translate(droneX, droneY);
+  // 프로펠러 (회전 효과 - 투명한 타원)
+  const propSpin = (elapsed / 30) % (Math.PI * 2);
+  ctx.fillStyle = 'rgba(180, 180, 220, 0.4)';
+  [-8, 8].forEach(dx => {
     ctx.beginPath();
-    ctx.moveTo(a.targetX, bomberY + 6);
-    ctx.lineTo(a.targetX, a.targetY - 5);
+    ctx.ellipse(dx, -3, 7, 1.5, propSpin, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  // 본체
+  ctx.fillStyle = '#222';
+  ctx.fillRect(-5, -2, 10, 4);
+  // 다리
+  ctx.fillStyle = '#444';
+  ctx.fillRect(-8, -3, 2, 1);
+  ctx.fillRect(6, -3, 2, 1);
+  ctx.restore();
+
+  // 수류탄 (incoming 직전에 떨어짐)
+  if (elapsed > incoming - 300 && elapsed < incoming + 100) {
+    const t = Math.max(0, Math.min(1, (elapsed - (incoming - 300)) / 300));
+    const gx = a.targetX;
+    const gy = droneTargetY + (a.targetY - 5 - droneTargetY) * t;
+    ctx.save();
+    ctx.fillStyle = '#3a5a3a';
+    ctx.beginPath(); ctx.arc(gx, gy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(gx - 4, gy); ctx.lineTo(gx + 4, gy); ctx.moveTo(gx, gy - 4); ctx.lineTo(gx, gy + 4); ctx.stroke();
+    // 안전핀 라인 (위로 끌려 옴)
+    ctx.strokeStyle = 'rgba(255, 217, 61, 0.6)';
+    ctx.beginPath(); ctx.moveTo(gx, gy - 4); ctx.lineTo(droneX, droneY + 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// === 🇯🇵 카미카제 (T10) — 비행기가 빠르게 타겟으로 돌진 후 자폭 ===
+function drawKamikaze(a, elapsed, incoming, linger) {
+  if (elapsed > incoming + 100) return;
+  const fromLeft = a.targetX < canvas.width / 2;
+  const startX = fromLeft ? -60 : canvas.width + 60;
+  const startY = 40;
+  const t = Math.min(1, elapsed / incoming);
+  // 직선 돌진
+  const planeX = startX + (a.targetX - startX) * t;
+  const planeY = startY + (a.targetY - 5 - startY) * t;
+  const angle = Math.atan2(a.targetY - 5 - startY, a.targetX - startX);
+  ctx.save();
+  ctx.translate(planeX, planeY);
+  ctx.rotate(angle);
+  if (!fromLeft) {
+    // ok
+  }
+  // 일본 욱일 비행기 (단순화)
+  // 동체
+  ctx.fillStyle = '#ddd';
+  ctx.beginPath();
+  ctx.moveTo(-16, 0); ctx.lineTo(-10, -4); ctx.lineTo(14, -2); ctx.lineTo(18, 0); ctx.lineTo(14, 2); ctx.lineTo(-10, 4);
+  ctx.closePath(); ctx.fill();
+  // 날개 (작은 X)
+  ctx.fillStyle = '#bbb';
+  ctx.beginPath();
+  ctx.moveTo(-2, -2); ctx.lineTo(2, -10); ctx.lineTo(5, -10); ctx.lineTo(2, -2);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-2, 2); ctx.lineTo(2, 10); ctx.lineTo(5, 10); ctx.lineTo(2, 2);
+  ctx.closePath(); ctx.fill();
+  // 빨간 원 (욱일 표식)
+  ctx.fillStyle = '#FF4757';
+  ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+  // 프로펠러
+  ctx.strokeStyle = 'rgba(200,200,200,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(18, -5); ctx.lineTo(18, 5); ctx.stroke();
+  ctx.restore();
+
+  // 화염 꼬리
+  if (t > 0.3) {
+    ctx.save();
+    ctx.strokeStyle = `rgba(255, 71, 87, ${0.6 + Math.random() * 0.3})`;
+    ctx.lineWidth = 2;
+    const tailLen = 30 * (t - 0.3);
+    ctx.beginPath();
+    ctx.moveTo(planeX, planeY);
+    ctx.lineTo(planeX - Math.cos(angle) * tailLen, planeY - Math.sin(angle) * tailLen);
     ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// === 🇨🇳 위성 레이저 (ZTZ99) — 화면 위쪽 위성 + 수직 강력 레이저 ===
+function drawSatelliteLaser(a, elapsed, incoming, linger) {
+  const satX = a.targetX;
+  const satY = 35;
+  // 위성 본체
+  ctx.save();
+  ctx.translate(satX, satY);
+  // 태양광 패널 (좌우)
+  ctx.fillStyle = '#1E90FF';
+  ctx.fillRect(-25, -3, 10, 6);
+  ctx.fillRect(15, -3, 10, 6);
+  ctx.strokeStyle = '#0a4a8a';
+  ctx.lineWidth = 0.5;
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath(); ctx.moveTo(-25 + i * 2.5, -3); ctx.lineTo(-25 + i * 2.5, 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(15 + i * 2.5, -3); ctx.lineTo(15 + i * 2.5, 3); ctx.stroke();
+  }
+  // 위성 본체
+  ctx.fillStyle = '#888';
+  ctx.fillRect(-12, -5, 24, 10);
+  ctx.fillStyle = '#FFD93D';
+  ctx.fillRect(-2, -2, 4, 4);
+  // 안테나
+  ctx.strokeStyle = '#aaa';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(0, -12); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, -12, 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+
+  // 조준 페이즈 (incoming 후반)
+  if (elapsed > incoming - 600 && elapsed < incoming) {
+    ctx.save();
+    ctx.strokeStyle = `rgba(255, 71, 87, ${0.3 + Math.sin(elapsed / 80) * 0.3})`;
+    ctx.setLineDash([3, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(satX, satY + 5); ctx.lineTo(a.targetX, a.targetY - 5); ctx.stroke();
     ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // 레이저 발사 (incoming 직후)
+  if (elapsed >= incoming && elapsed < incoming + 800) {
+    const laserAlpha = Math.max(0, 1 - (elapsed - incoming) / 800);
+    ctx.save();
+    // 외부 글로우
+    ctx.strokeStyle = `rgba(168, 85, 247, ${laserAlpha * 0.6})`;
+    ctx.lineWidth = 20;
+    ctx.beginPath(); ctx.moveTo(satX, satY + 5); ctx.lineTo(a.targetX, a.targetY); ctx.stroke();
+    // 중간
+    ctx.strokeStyle = `rgba(255, 71, 87, ${laserAlpha * 0.85})`;
+    ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(satX, satY + 5); ctx.lineTo(a.targetX, a.targetY); ctx.stroke();
+    // 코어 (밝은 흰)
+    ctx.strokeStyle = `rgba(255, 255, 255, ${laserAlpha})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(satX, satY + 5); ctx.lineTo(a.targetX, a.targetY); ctx.stroke();
     ctx.restore();
   }
 }
