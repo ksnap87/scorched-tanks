@@ -227,19 +227,50 @@ const TANK_NAMES = [
 //   - radius/damage: 직격 기준
 //   - multi: 메인 폭발 후 좌우 추가 sub-폭발 개수 (포트리스 멀티탄)
 //   - pierce: APFSDS류 직격 시 운동에너지 추가 배수
+// range: 포탄 사거리 (사용자 지정 사정거리 / 50, 미국=1.0이 지도의 3/4 도달)
+// moveSpeed: 탱크 이동속도 (한 번 클릭/키보드 입력당 이동 거리 multiplier)
+// move: 게임 전체 누적 이동 가능량 (px)
+// speed: 포탄 비행 속도 (운동에너지 영향)
+// ammo: NORMAL 일반탄 (radius=폭발범위, damage=파괴력)
+// bomb2: REDBEAN 자리 특수탄 (탱크별 다름)
+//   - kind: 'redbean'|'multi'|'uranium'|'guided'|'shotgun'
 const TANK_TYPES = {
-  K2:    { id: 'K2',    name: 'K2 흑표',         country: '한국',   flag: '🇰🇷', hp: 100, range: 1.0, move: 200, speed: 1.0, desc: '균형 HE',           ammo: { kind: 'HE',     radius: 35, damage: 35 },
-           ultimate: { kind: 'army_missile',  name: '한화 유도탄',   damage: 70, radius: 10, terrainRadius: 15 } },
-  M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸', hp: 140, range: 1.0, move: 120, speed: 1.0, desc: '중장갑 / 큰폭발',   ammo: { kind: 'HEAT',   radius: 48, damage: 36 },
-           ultimate: { kind: 'f22_carpet',    name: 'F-22 융단폭격', damage: 50, radius: 50, terrainRadius: 20 } },
-  ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳', hp:  80, range: 0.8, move: 280, speed: 1.0, desc: '멀티탄 (3발 분산)', ammo: { kind: 'MULTI',  radius: 26, damage: 24, multi: 3, multiSpread: 1.3, subDamageRatio: 0.55 },
-           ultimate: { kind: 'satellite_laser', name: '위성 레이저', damage: 80, radius: 5,  terrainRadius: 30 } },
-  T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺', hp: 100, range: 0.8, move: 200, speed: 1.2, desc: '속사 AP',           ammo: { kind: 'AP',     radius: 26, damage: 42 },
-           ultimate: { kind: 'drone_grenade', name: '드론 수류탄',   damage: 20, radius: 5,  terrainRadius: 5 } },
-  LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪', hp: 100, range: 1.4, move: 120, speed: 1.0, desc: '장거리 APFSDS',     ammo: { kind: 'APFSDS', radius: 22, damage: 44, pierce: 1.25 },
-           ultimate: { kind: 'default',       name: 'Air Strike',    damage: 70, radius: 90, terrainRadius: 90 } },
-  T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵', hp:  70, range: 1.0, move: 240, speed: 1.1, desc: '경량 속사 / 정밀',  ammo: { kind: 'FastHE', radius: 30, damage: 34 },
-           ultimate: { kind: 'kamikaze',      name: '카미카제',      damage: 40, radius: 20, terrainRadius: 20 } },
+  K2:    { id: 'K2',    name: 'K2 흑표',         country: '한국',   flag: '🇰🇷',
+           hp: 120, range: 0.8, move: 150, speed: 1.0, moveSpeed: 2.0,
+           desc: '빨콩 유탄포',
+           ammo:  { kind: 'HE',     radius: 10, damage: 30 },
+           bomb2: { kind: 'redbean', name: '빨콩',  damage: 60, radius: 5,  range: 1.2 },
+           ultimate: { kind: 'army_missile',    name: '한화 유도탄',   damage: 70, radius: 10, terrainRadius: 15 } },
+  M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸',
+           hp: 140, range: 1.0, move: 100, speed: 1.0, moveSpeed: 1.5,
+           desc: '중장갑 멀티탄',
+           ammo:  { kind: 'HE',     radius: 15, damage: 40 },
+           bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 10, radius: 4, range: 1.0, multi: 4, multiSpread: 1.5, subDamageRatio: 1.0 },
+           ultimate: { kind: 'f22_carpet',      name: 'F-22 융단폭격', damage: 50, radius: 50, terrainRadius: 20 } },
+  T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺',
+           hp: 130, range: 1.2, move: 130, speed: 1.0, moveSpeed: 1.3,
+           desc: '우라늄탄 DOT',
+           ammo:  { kind: 'AP',     radius: 5,  damage: 30 },
+           bomb2: { kind: 'uranium', name: '우라늄탄', damage: 10, radius: 5, range: 1.2, dotRadius: 10, dotDps: 1, dotDuration: 8 },
+           ultimate: { kind: 'drone_grenade',   name: '드론 수류탄',   damage: 20, radius: 5,  terrainRadius: 5 } },
+  T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵',
+           hp: 110, range: 0.7, move: 170, speed: 1.0, moveSpeed: 2.3,
+           desc: '정밀 유도탄',
+           ammo:  { kind: 'HE',     radius: 10, damage: 30 },
+           bomb2: { kind: 'guided', name: '정밀 유도탄', damage: 20, radius: 10, range: 0.8, guideMs: 5000 },
+           ultimate: { kind: 'kamikaze',        name: '카미카제',      damage: 40, radius: 20, terrainRadius: 20 } },
+  ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳',
+           hp: 115, range: 0.6, move: 120, speed: 1.0, moveSpeed: 1.3,
+           desc: '샷건 에어버스트',
+           ammo:  { kind: 'HE',     radius: 15, damage: 30 },
+           bomb2: { kind: 'shotgun', name: '샷건탄', damage: 20, radius: 30, range: 0.8, airBurst: 60 },
+           ultimate: { kind: 'satellite_laser', name: '위성 레이저',   damage: 80, radius: 5,  terrainRadius: 30 } },
+  LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪',
+           hp: 100, range: 1.4, move: 120, speed: 1.0, moveSpeed: 1.0,
+           desc: '장거리 APFSDS',
+           ammo:  { kind: 'APFSDS', radius: 22, damage: 44, pierce: 1.25 },
+           bomb2: { kind: 'redbean', name: '빨콩',  damage: 60, radius: 5,  range: 1.4 },
+           ultimate: { kind: 'stuka_dive',       name: 'Stuka 급강하',  damage: 50, radius: 15, terrainRadius: 15 } },
 };
 const DEFAULT_TANK = 'K2';
 function getTankDef(id) { return TANK_TYPES[id] || TANK_TYPES[DEFAULT_TANK]; }
@@ -575,8 +606,24 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   let terrainRadius = null; // 명시 안 하면 radius 사용
 
   if (weaponType === 'redbean') {
-    radius = 15;
-    maxDamage = 80;
+    // REDBEAN 자리 = 탱크별 bomb2
+    if (shooter) {
+      const tankDef = getTankDef(shooter.tankType);
+      if (tankDef.bomb2) {
+        radius = tankDef.bomb2.radius;
+        maxDamage = tankDef.bomb2.damage;
+        terrainRadius = radius;
+        // sub-explosion (멀티탄 4발 같은)이면 약하게
+        if (isSubExplosion) {
+          radius = radius * 0.85;
+          maxDamage = maxDamage * (tankDef.bomb2.subDamageRatio || 0.8);
+        }
+      } else {
+        radius = 15; maxDamage = 80;
+      }
+    } else {
+      radius = 15; maxDamage = 80;
+    }
   } else if (weaponType === 'laser_guided') {
     // 탱크별 ULTIMATE 차별
     if (shooter) {
@@ -693,18 +740,23 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 
   room.explosions.push({ x, y, radius, time: Date.now() });
 
-  // 멀티탄 (포트리스 스타일): 메인 폭발 후 좌우 추가 sub-폭발
-  if (!isSubExplosion && weaponType === 'normal' && shooter) {
-    const tankAmmo = getTankDef(shooter.tankType).ammo;
-    if (tankAmmo && tankAmmo.multi && tankAmmo.multi > 1) {
-      const baseRadius = tankAmmo.radius;
-      const spread = baseRadius * (tankAmmo.multiSpread || 1.3);
-      const subCount = tankAmmo.multi - 1;
+  // 멀티탄 (포트리스 스타일): NORMAL ammo + bomb2 둘 다 multi 옵션 지원
+  if (!isSubExplosion && shooter) {
+    const tankDef = getTankDef(shooter.tankType);
+    let multiSpec = null;
+    if (weaponType === 'normal' && tankDef.ammo && tankDef.ammo.multi > 1) {
+      multiSpec = tankDef.ammo;
+    } else if (weaponType === 'redbean' && tankDef.bomb2 && tankDef.bomb2.multi > 1) {
+      multiSpec = tankDef.bomb2;
+    }
+    if (multiSpec) {
+      const baseRadius = multiSpec.radius;
+      const spread = baseRadius * (multiSpec.multiSpread || 1.3);
+      const subCount = multiSpec.multi - 1;
       for (let i = 0; i < subCount; i++) {
         const sign = i % 2 === 0 ? -1 : 1;
         const step = Math.ceil((i + 1) / 2);
         const sx = x + spread * step * sign;
-        // 지형 위치에 맞춰 sub-폭발 y 조정
         const sy = Math.min(y, getTerrainY(room.terrain, sx) - 5);
         applyExplosion(room, sx, sy, weaponType, projectileSpeed, shooter, true);
       }
@@ -802,6 +854,8 @@ function startFire(room, player, weaponType, useDouble) {
       room.airstrike = {
         targetX: px,
         targetY: py,
+        originX: player.x,        // 본인 탱크 X (한국 필살기 군인이 여기서 등장)
+        originY: player.y,
         startTime: Date.now(),
         incomingMs: AIRSTRIKE_INCOMING_MS,
         lingerMs: AIRSTRIKE_LINGER_MS,
@@ -909,7 +963,17 @@ function startFire(room, player, weaponType, useDouble) {
   return true;
 }
 
+function ensureHost(room) {
+  const ids = Object.keys(room.players);
+  if (ids.length === 0) { room.host = null; return; }
+  // host가 빈 값이거나 실제 player로 없으면 첫 사람에게 자동 인계
+  if (!room.host || !room.players[room.host]) {
+    room.host = ids[0];
+  }
+}
+
 function broadcastState(room) {
+  ensureHost(room);
   io.to(room.id).emit('gameState', {
     roomId: room.id,
     host: room.host,
@@ -1090,7 +1154,7 @@ io.on('connection', (socket) => {
     broadcastState(r);
   });
 
-  // 키보드/버튼 1회 이동 (5px)
+  // 키보드/버튼 1회 이동 (5px × moveSpeed)
   socket.on('move', (direction) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
@@ -1101,8 +1165,10 @@ io.on('connection', (socket) => {
     if (!player || !player.alive) return;
     if (player.moveBudget <= 0) return;
 
+    const tankDef = getTankDef(player.tankType);
+    const moveSpeedMul = tankDef.moveSpeed || 1.0;
     const dir = direction < 0 ? -1 : 1;
-    const desiredStep = Math.min(5, player.moveBudget);
+    const desiredStep = Math.min(5 * moveSpeedMul, player.moveBudget);
     const newX = Math.max(20, Math.min(CANVAS_WIDTH - 20, player.x + dir * desiredStep));
     const actualStep = Math.abs(newX - player.x);
     if (actualStep === 0) return;
@@ -1114,7 +1180,7 @@ io.on('connection', (socket) => {
     broadcastState(r);
   });
 
-  // 거리 지정 이동 (숫자 입력으로 N px 한 번에)
+  // 거리 지정 이동 (숫자 입력 N × moveSpeed)
   socket.on('moveBy', (data) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
@@ -1125,10 +1191,12 @@ io.on('connection', (socket) => {
     if (!player || !player.alive) return;
     if (player.moveBudget <= 0) return;
 
+    const tankDef = getTankDef(player.tankType);
+    const moveSpeedMul = tankDef.moveSpeed || 1.0;
     const direction = (data && data.direction) || 0;
     let requestedDist = parseInt(data && data.distance);
     if (!Number.isFinite(requestedDist) || requestedDist <= 0) return;
-    requestedDist = Math.max(1, Math.min(MOVE_RANGE_PER_TURN, requestedDist));
+    requestedDist = Math.max(1, Math.min(MOVE_RANGE_PER_TURN, requestedDist)) * moveSpeedMul;
 
     const dir = direction < 0 ? -1 : 1;
     const desiredStep = Math.min(requestedDist, player.moveBudget);

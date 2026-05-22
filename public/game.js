@@ -834,6 +834,13 @@ function updateControls() {
 
     const laserCount = me.laserShots ?? 0;
     if (laserCountInBtn) laserCountInBtn.textContent = laserCount;
+
+    // BOMB2 (REDBEAN 자리) 라벨 — 탱크별 동적
+    const bomb2Label = document.getElementById('bomb2Label');
+    if (bomb2Label && tankTypes && me.tankType && tankTypes[me.tankType]) {
+      const bomb2 = tankTypes[me.tankType].bomb2;
+      bomb2Label.textContent = bomb2 ? bomb2.name : 'BOMB 2';
+    }
     if (currentWeapon === 'laser_guided' && laserCount <= 0) currentWeapon = 'normal';
     weaponButtons.forEach(btn => {
       const w = btn.dataset.weapon;
@@ -1271,6 +1278,7 @@ function drawAirstrike() {
     case 'drone_grenade':   drawDroneGrenade(a, elapsed, incoming, linger); break;
     case 'kamikaze':        drawKamikaze(a, elapsed, incoming, linger); break;
     case 'satellite_laser': drawSatelliteLaser(a, elapsed, incoming, linger); break;
+    case 'stuka_dive':      drawStukaDive(a, elapsed, incoming, linger); break;
     default:                drawDefaultBomber(a, elapsed, incoming, linger); break;
   }
 }
@@ -1400,58 +1408,236 @@ function drawF22Carpet(a, elapsed, incoming, linger) {
   }
 }
 
-// === 🇰🇷 한화 유도탄 — 좌우에서 육군 등장 → 미사일 발사 (K2) ===
+// === 🇰🇷 천궁2 (K2) — 본인 탱크 옆에 군인 2명 등장, 한 명 무릎 꿇고 발사대, 한 명 옆 지원, 미사일 발사 + 부스터 점화 + 가속 + 유도 명중 ===
 function drawKoreanArmy(a, elapsed, incoming, linger) {
-  const fromLeft = a.targetX > canvas.width / 2; // 반대편에서 옴 (목표 향해)
-  const groundY = state ? Math.min(canvas.height - 30, getClientTerrainY(a.targetX < canvas.width / 2 ? 100 : canvas.width - 100)) : canvas.height - 50;
-  const startX = fromLeft ? -50 : canvas.width + 50;
-  const stopX = fromLeft ? 120 : canvas.width - 120;
-  let soldierX;
-  if (elapsed <= incoming) {
-    const t = Math.min(1, elapsed / (incoming - 200));
-    soldierX = startX + (stopX - startX) * t;
-  } else {
-    soldierX = stopX;
-  }
-  // 군인 도형 (헬멧 + 몸 + 다리 — 걷는 애니메이션)
+  const tankX = a.originX != null ? a.originX : (a.targetX - 200);
+  const sideSign = a.targetX >= tankX ? 1 : -1; // 목표 방향으로 군인 등장
+  const groundY = getClientTerrainY(tankX + sideSign * 30) - 1;
+
+  // 군인 등장 (incoming 처음 700ms: 탱크 옆으로 걸어나옴)
+  const walkPhase = Math.min(1, elapsed / 700);
+  const s1BaseX = tankX + sideSign * 24;
+  const s2BaseX = tankX + sideSign * 42;
+  const s1X = tankX + (s1BaseX - tankX) * walkPhase;
+  const s2X = tankX + (s2BaseX - tankX) * walkPhase;
+
+  // === 군인 1 (앞, 무릎 꿇음, 천궁2 발사대 잡음) ===
   ctx.save();
-  ctx.translate(soldierX, groundY);
-  if (!fromLeft) ctx.scale(-1, 1);
-  // 몸
+  ctx.translate(s1X, groundY);
+  if (sideSign < 0) ctx.scale(-1, 1);
+  // 몸통 (무릎 꿇은 자세)
   ctx.fillStyle = '#3a5a3a';
-  ctx.fillRect(-4, -16, 8, 12);
+  ctx.fillRect(-4, -14, 8, 11);
   // 헬멧
-  ctx.fillStyle = '#2c4a2c';
-  ctx.beginPath(); ctx.arc(0, -20, 5, Math.PI, 0); ctx.fill();
-  ctx.fillRect(-5, -20, 10, 2);
-  // 다리 (걷는 애니메이션)
-  const walkPhase = Math.sin(elapsed / 100) * 2;
-  ctx.fillStyle = '#2a3a2a';
-  ctx.fillRect(-3, -4, 2, 6 + walkPhase);
-  ctx.fillRect(1, -4, 2, 6 - walkPhase);
-  // 미사일 발사기 (어깨)
-  ctx.fillStyle = '#444';
-  ctx.fillRect(4, -14, 14, 3);
+  ctx.fillStyle = '#2a3f2a';
+  ctx.beginPath(); ctx.arc(0, -16, 4, Math.PI, 0); ctx.fill();
+  ctx.fillRect(-4, -16, 8, 1.5);
+  // 무릎 꿇은 다리 (앞으로 굽음)
+  ctx.fillStyle = '#283828';
+  ctx.fillRect(-3, -3, 2, 3);   // 앞 다리 짧게
+  ctx.fillRect(1.5, -3, 2, 3);
+  ctx.fillRect(2, 0, 5, 1.5);   // 무릎 펴진 발
+  // 천궁2 발사대 (긴 통 + 발사구)
+  ctx.fillStyle = '#3a3a44';
+  ctx.fillRect(2, -11, 20, 5);
+  ctx.fillStyle = '#1a1a22';
+  ctx.fillRect(20, -12, 4, 7);  // 발사구
+  ctx.fillStyle = '#6a6a78';
+  ctx.fillRect(0, -10, 4, 3);   // 손잡이 부분
   ctx.restore();
 
-  // 미사일 발사 (incoming 마지막에)
-  if (elapsed > incoming - 400 && elapsed < incoming + 100) {
-    const t = Math.max(0, Math.min(1, (elapsed - (incoming - 400)) / 400));
-    const launchX = fromLeft ? soldierX + 18 : soldierX - 18;
-    const launchY = groundY - 13;
-    const mx = launchX + (a.targetX - launchX) * t;
-    const my = launchY + (a.targetY - 5 - launchY) * t;
-    // 미사일 본체
-    ctx.save();
+  // === 군인 2 (뒤, 옆에 서 있음, 지원 자세) ===
+  ctx.save();
+  ctx.translate(s2X, groundY);
+  if (sideSign < 0) ctx.scale(-1, 1);
+  // 몸통
+  ctx.fillStyle = '#3a5a3a';
+  ctx.fillRect(-3, -17, 6, 13);
+  // 헬멧
+  ctx.fillStyle = '#2a3f2a';
+  ctx.beginPath(); ctx.arc(0, -19, 4, Math.PI, 0); ctx.fill();
+  ctx.fillRect(-4, -19, 8, 1.5);
+  // 다리 (서있음 — 걷는 동안만 흔들림)
+  const standWalk = walkPhase < 1 ? Math.sin(elapsed / 100) * 1.5 : 0;
+  ctx.fillStyle = '#283828';
+  ctx.fillRect(-2, -4, 1.6, 5 + standWalk);
+  ctx.fillRect(0.6, -4, 1.6, 5 - standWalk);
+  // 들고 있는 장비 (무전기 또는 망원경)
+  ctx.fillStyle = '#1a1a22';
+  ctx.fillRect(2.5, -13, 3, 3);
+  ctx.restore();
+
+  // === 천궁2 미사일 발사 (군인 도착 후 ~ incoming 끝) ===
+  const launchStart = 750;
+  if (elapsed > launchStart && elapsed < incoming + 100) {
+    const launchT = Math.max(0, Math.min(1, (elapsed - launchStart) / (incoming - launchStart)));
+    const launchX = s1BaseX + sideSign * 22;
+    const launchY = groundY - 11;
+
+    // 부스터 점화 구간: launchT 0.25~0.4 ("퉁" 발사 → 부스터 점화 → 가속)
+    let progress, phase;
+    if (launchT < 0.25) {
+      // Phase 0: "퉁" 하고 느리게 (바주카 로켓)
+      phase = 0;
+      progress = launchT * 0.10 / 0.25;        // 0 ~ 0.10
+    } else if (launchT < 0.40) {
+      // Phase 1: 부스터 점화 (transition)
+      phase = 1;
+      progress = 0.10 + (launchT - 0.25) * 0.15 / 0.15;   // 0.10 ~ 0.25
+    } else {
+      // Phase 2: 본격 미사일 가속 → 정확한 명중
+      phase = 2;
+      progress = 0.25 + (launchT - 0.40) * 0.75 / 0.60;   // 0.25 ~ 1.0
+    }
+    progress = Math.min(1, progress);
+
+    const mx = launchX + (a.targetX - launchX) * progress;
+    const my = launchY + (a.targetY - 5 - launchY) * progress;
     const angle = Math.atan2(a.targetY - 5 - launchY, a.targetX - launchX);
-    ctx.translate(mx, my); ctx.rotate(angle);
-    ctx.fillStyle = '#FFA502';
-    ctx.fillRect(-8, -2, 14, 4);
-    ctx.fillStyle = '#FF4757';
-    ctx.beginPath(); ctx.moveTo(6, -2); ctx.lineTo(12, 0); ctx.lineTo(6, 2); ctx.closePath(); ctx.fill();
-    // 화염 꼬리
-    ctx.fillStyle = `rgba(255, 165, 2, ${0.7 + Math.random() * 0.3})`;
-    ctx.beginPath(); ctx.moveTo(-8, -1); ctx.lineTo(-14 - Math.random() * 5, 0); ctx.lineTo(-8, 1); ctx.closePath(); ctx.fill();
+
+    ctx.save();
+    ctx.translate(mx, my);
+    ctx.rotate(angle);
+    if (phase === 0) {
+      // 초기 바주카 로켓 (둔탁, 작은 화염)
+      ctx.fillStyle = '#8B6F47';
+      ctx.fillRect(-8, -2, 14, 4);
+      ctx.fillStyle = '#3a3a44';
+      ctx.beginPath(); ctx.moveTo(6, -2); ctx.lineTo(11, 0); ctx.lineTo(6, 2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255, 165, 2, 0.6)';
+      ctx.beginPath(); ctx.moveTo(-8, -1); ctx.lineTo(-13, 0); ctx.lineTo(-8, 1); ctx.closePath(); ctx.fill();
+    } else {
+      // 부스터 점화 후 본격 미사일 (날렵, 강한 화염)
+      ctx.fillStyle = '#e8e8ec';
+      ctx.beginPath();
+      ctx.moveTo(-12, 0); ctx.lineTo(-6, -2); ctx.lineTo(11, -1.8); ctx.lineTo(14, 0); ctx.lineTo(11, 1.8); ctx.lineTo(-6, 2);
+      ctx.closePath(); ctx.fill();
+      // 빨간 띠 (한국 국기 컬러)
+      ctx.fillStyle = '#FF4757';
+      ctx.fillRect(-3, -1.6, 4, 3.2);
+      // 부스터 화염 (phase 1 작게, phase 2 크게)
+      const flameLen = phase === 1 ? 10 + Math.random() * 8 : 18 + Math.random() * 14;
+      ctx.fillStyle = `rgba(255, 217, 61, ${0.9})`;
+      ctx.beginPath();
+      ctx.moveTo(-12, -2); ctx.lineTo(-12 - flameLen, 0); ctx.lineTo(-12, 2);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(255, 71, 87, 0.7)`;
+      ctx.beginPath();
+      ctx.moveTo(-12, -1); ctx.lineTo(-12 - flameLen * 0.55, 0); ctx.lineTo(-12, 1);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+
+    // 부스터 점화 시각 효과 (transition 시점에 빛 폭발)
+    if (phase === 1 && launchT < 0.32) {
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      const flashR = 6 + (launchT - 0.25) * 60;
+      ctx.fillStyle = `rgba(255, 217, 61, ${0.7 - (launchT - 0.25) * 5})`;
+      ctx.beginPath(); ctx.arc(mx, my, flashR, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // 발사대 발사 시 매연 (군인 1 위치에서)
+  if (elapsed > launchStart - 50 && elapsed < launchStart + 200) {
+    const smokeT = Math.max(0, (elapsed - (launchStart - 50)) / 250);
+    ctx.save();
+    ctx.globalAlpha = (1 - smokeT) * 0.5;
+    ctx.fillStyle = '#aaa';
+    const launchX = s1BaseX + sideSign * 22;
+    const launchY = groundY - 11;
+    ctx.beginPath();
+    ctx.arc(launchX - sideSign * (8 + smokeT * 20), launchY + smokeT * 5, 6 + smokeT * 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// === 🇩🇪 Stuka Ju-87 급강하 폭격기 (LEO2) — 상공에서 비스듬히 급강하 → 폭탄 투하 ===
+function drawStukaDive(a, elapsed, incoming, linger) {
+  if (elapsed > incoming + 150) return;
+  const t = Math.min(1, elapsed / incoming);
+  const fromLeft = a.targetX < canvas.width / 2;
+  const sx = fromLeft ? a.targetX - 280 : a.targetX + 280;
+  const sy = -40;
+  const ex = a.targetX + (fromLeft ? -40 : 40);
+  const ey = a.targetY - 50;
+  // 가속 강하 (t²)
+  const accel = t * t;
+  const planeX = sx + (ex - sx) * accel;
+  const planeY = sy + (ey - sy) * accel;
+  const angle = Math.atan2(ey - sy, ex - sx) * (0.5 + t * 0.5);
+
+  ctx.save();
+  ctx.translate(planeX, planeY);
+  if (fromLeft) ctx.scale(1, 1); else ctx.scale(-1, 1);
+  ctx.rotate(fromLeft ? angle : -angle);
+  // 동체 (Ju-87 카키)
+  ctx.fillStyle = '#5a5840';
+  ctx.beginPath();
+  ctx.moveTo(-20, 0); ctx.lineTo(-10, -3); ctx.lineTo(15, -3); ctx.lineTo(20, 0); ctx.lineTo(15, 3); ctx.lineTo(-10, 3);
+  ctx.closePath(); ctx.fill();
+  // 갈매기 날개 (Stuka 특징 — 'W' 모양)
+  ctx.fillStyle = '#3a3828';
+  ctx.beginPath();
+  ctx.moveTo(-3, -2); ctx.lineTo(-8, -10); ctx.lineTo(2, -7); ctx.lineTo(8, -10); ctx.lineTo(4, -2);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-3, 2); ctx.lineTo(-8, 10); ctx.lineTo(2, 7); ctx.lineTo(8, 10); ctx.lineTo(4, 2);
+  ctx.closePath(); ctx.fill();
+  // 꼬리 날개 (수직)
+  ctx.fillStyle = '#3a3828';
+  ctx.beginPath();
+  ctx.moveTo(-20, -1); ctx.lineTo(-24, -7); ctx.lineTo(-16, -1);
+  ctx.closePath(); ctx.fill();
+  // 캐노피
+  ctx.fillStyle = '#7CC4FF';
+  ctx.beginPath(); ctx.ellipse(5, -2, 5, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+  // 고정 랜딩기어 (Stuka 트레이드마크)
+  ctx.fillStyle = '#222';
+  ctx.fillRect(-1, 3, 1.5, 5);
+  ctx.fillRect(-5, 3, 1.5, 5);
+  ctx.beginPath(); ctx.arc(-4.5, 8, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-0.5, 8, 1.5, 0, Math.PI * 2); ctx.fill();
+  // 폭탄 (배 아래) — t < 0.75일 때만
+  if (t < 0.75) {
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.ellipse(0, 5, 3, 2, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // 프로펠러
+  ctx.strokeStyle = 'rgba(200,200,200,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(20, -6); ctx.lineTo(20, 6); ctx.stroke();
+  ctx.restore();
+
+  // Stuka 사이렌 시각화 — 십자 점선 (특유의 'Jericho Trumpet')
+  if (t > 0.25 && t < 0.85) {
+    ctx.save();
+    ctx.strokeStyle = `rgba(255, 217, 61, ${0.4 + Math.sin(elapsed / 40) * 0.3})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(planeX - 14, planeY); ctx.lineTo(planeX + 14, planeY);
+    ctx.moveTo(planeX, planeY - 14); ctx.lineTo(planeX, planeY + 14);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // 폭탄 떨어짐 (t > 0.75)
+  if (t > 0.75) {
+    const bt = (t - 0.75) / 0.25;
+    const bx = planeX + (a.targetX - planeX) * bt;
+    const by = planeY + (a.targetY - 5 - planeY) * bt;
+    ctx.save();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.ellipse(bx, by, 2.5, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // 핀
+    ctx.fillStyle = '#444';
+    ctx.beginPath();
+    ctx.moveTo(bx - 2.5, by - 4); ctx.lineTo(bx, by - 6); ctx.lineTo(bx + 2.5, by - 4);
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 }
