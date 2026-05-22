@@ -245,7 +245,7 @@ const TANK_TYPES = {
            hp: 140, range: 1.0, move: 100, speed: 1.0, moveSpeed: 1.5,
            desc: '중장갑 멀티탄',
            ammo:  { kind: 'HE',     radius: 15, damage: 40 },
-           bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 10, radius: 4, range: 1.0, multi: 4, multiSpread: 1.5, subDamageRatio: 1.0 },
+           bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 10, radius: 4, range: 1.0, multi: 4, multiSpreadPx: 28, subDamageRatio: 1.0 },
            ultimate: { kind: 'f22_carpet',      name: 'F-22 융단폭격', damage: 50, radius: 50, terrainRadius: 20 } },
   T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺',
            hp: 130, range: 1.2, move: 130, speed: 1.0, moveSpeed: 1.3,
@@ -274,6 +274,32 @@ const TANK_TYPES = {
 };
 const DEFAULT_TANK = 'K2';
 function getTankDef(id) { return TANK_TYPES[id] || TANK_TYPES[DEFAULT_TANK]; }
+
+// === 대륙 + 자연재해 ===
+const TANK_TO_CONTINENT = { K2: 'KR', M1A2: 'US', ZTZ99: 'CN', T90: 'RU', LEO2: 'DE', T10: 'JP' };
+const CONTINENT_INFO = {
+  KR: { name: '한반도', flag: '🇰🇷', weatherPreferred: 'typhoon',   skyTop: '#1a2a3a', skyBot: '#3a4a5a' },
+  US: { name: '북미',   flag: '🇺🇸', weatherPreferred: 'random',    skyTop: '#0d1d3a', skyBot: '#2a1535' },
+  CN: { name: '고비사막', flag: '🇨🇳', weatherPreferred: 'sandstorm', skyTop: '#6a4a1f', skyBot: '#b08740' },
+  RU: { name: '시베리아', flag: '🇷🇺', weatherPreferred: 'snow',     skyTop: '#2c3850', skyBot: '#5e6b80' },
+  JP: { name: '일본 열도', flag: '🇯🇵', weatherPreferred: 'rain',     skyTop: '#1a2030', skyBot: '#3a4a5a' },
+  DE: { name: '유럽 평원', flag: '🇩🇪', weatherPreferred: 'random',    skyTop: '#0d1030', skyBot: '#2a1535' },
+};
+const WEATHER_KINDS = ['rain', 'snow', 'typhoon', 'sandstorm'];
+
+function pickContinent(room) {
+  const hostId = room.host;
+  if (hostId && room.players[hostId]) {
+    return TANK_TO_CONTINENT[room.players[hostId].tankType] || 'KR';
+  }
+  return 'KR';
+}
+
+function pickWeatherKind(continent) {
+  const info = CONTINENT_INFO[continent];
+  if (info && info.weatherPreferred && info.weatherPreferred !== 'random') return info.weatherPreferred;
+  return WEATHER_KINDS[Math.floor(Math.random() * WEATHER_KINDS.length)];
+}
 
 // === Rooms (multi-room support) ===
 const rooms = {};
@@ -322,6 +348,10 @@ function createRoom(id) {
     lobbyReturnTimer: null,
     radiationZones: [],   // 우라늄탄 오염 지역 [{x, y, radius, dps, endsAt, shooterId}]
     nextZoneId: 1,
+    continent: 'KR',
+    weather: null,         // { kind, startedAt, turnsLeft, ... }
+    turnsTotal: 0,         // 자연재해 발동 트리거용
+    weatherUsedThisGame: false, // 게임당 한 번만
   };
 }
 
@@ -649,10 +679,13 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     if (tankDef.ammo) {
       radius = tankDef.ammo.radius;
       maxDamage = tankDef.ammo.damage;
+      // 일반탄 땅 파는 효과 20% 증가
+      terrainRadius = radius * 1.2;
       // 멀티탄의 sub-폭발은 약하게
       if (isSubExplosion) {
         radius = radius * 0.78;
         maxDamage = maxDamage * (tankDef.ammo.subDamageRatio || 0.55);
+        terrainRadius = radius * 1.2;
       }
     }
   }
@@ -726,7 +759,10 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     const fallDistance = newY - oldY;
 
     if (fallDistance > 5) {
-      const fallDamage = Math.round(fallDistance * 0.66);
+      // 낙하 데미지: 기본 선형 + 40px 초과분 가산 (높이가 클수록 가속적으로 증가)
+      const base = fallDistance * 0.9;
+      const extra = Math.max(0, fallDistance - 40) * 0.8;
+      const fallDamage = Math.round(base + extra);
       player.hp = Math.max(0, player.hp - fallDamage);
 
       if (player.hp <= 0) {
@@ -770,9 +806,11 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
       multiSpec = tankDef.bomb2;
     }
     if (multiSpec) {
-      const baseRadius = multiSpec.radius;
-      const spread = baseRadius * (multiSpec.multiSpread || 1.3);
+      const spread = multiSpec.multiSpreadPx
+        ? multiSpec.multiSpreadPx
+        : (multiSpec.radius * (multiSpec.multiSpread || 1.3));
       const subCount = multiSpec.multi - 1;
+      // 떨어지는 지점 기준 앞/뒤로 분산 (x축 방향)
       for (let i = 0; i < subCount; i++) {
         const sign = i % 2 === 0 ? -1 : 1;
         const step = Math.ceil((i + 1) / 2);

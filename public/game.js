@@ -560,13 +560,16 @@ socket.on('itemPickup', (data) => {
   if (!data) return;
   if (data.playerId === myId) {
     if (data.type === 'laser') {
-      showToast('🚀 LASER STRIKE 획득!');
+      const me = state && state.players ? state.players[myId] : null;
+      const ult = me && tankTypes && tankTypes[me.tankType] ? tankTypes[me.tankType].ultimate : null;
+      const ultName = ult ? ult.name : '필살기';
+      showToast(`🚀 ${ultName} 획득!`);
       currentWeapon = 'laser_guided';
       doubleShotMode = false;
       spawnPickupBurst();
     }
   } else {
-    showToast(`📦 ${data.playerName || '누군가'} 박스 획득`);
+    showToast(`📦 ${data.playerName || '누군가'} 필살기 획득`);
   }
 });
 
@@ -834,6 +837,12 @@ function updateControls() {
 
     const laserCount = me.laserShots ?? 0;
     if (laserCountInBtn) laserCountInBtn.textContent = laserCount;
+    // ULT 라벨 (탱크별 필살기 이름)
+    const ultLabel = document.getElementById('ultLabel');
+    if (ultLabel && tankTypes && me.tankType && tankTypes[me.tankType]) {
+      const ult = tankTypes[me.tankType].ultimate;
+      ultLabel.textContent = ult ? ult.name.toUpperCase() : 'ULT';
+    }
 
     // BOMB2 (REDBEAN 자리) 라벨 — 탱크별 동적
     const bomb2Label = document.getElementById('bomb2Label');
