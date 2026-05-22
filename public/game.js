@@ -2,6 +2,232 @@
 //  SCORCHED EARTH - Client Game Engine
 // ==========================================
 
+// === Auth handling ===
+const AUTH_TOKEN_KEY = 'st_token';
+const AUTH_USER_KEY = 'st_user';
+let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || null;
+let authUser = null;
+try { authUser = JSON.parse(localStorage.getItem(AUTH_USER_KEY) || 'null'); } catch (e) { authUser = null; }
+
+async function apiPost(path, body) {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+async function apiGet(path, withAuth) {
+  const headers = withAuth && authToken ? { Authorization: `Bearer ${authToken}` } : {};
+  const r = await fetch(path, { headers });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+function saveAuth(token, user) {
+  authToken = token;
+  authUser = user;
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  updateAuthBar();
+}
+function clearAuth() {
+  authToken = null;
+  authUser = null;
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+  updateAuthBar();
+}
+
+let authMode = 'login';
+function openAuthModal(mode) {
+  authMode = mode || 'login';
+  const modal = document.getElementById('authModal');
+  const title = document.getElementById('authModalTitle');
+  const submit = document.getElementById('authSubmit');
+  const switchText = document.getElementById('authSwitchText');
+  const switchLink = document.getElementById('authSwitchLink');
+  if (authMode === 'register') {
+    title.textContent = '회원가입';
+    submit.textContent = '가입하기';
+    switchText.textContent = '이미 계정이 있나요?';
+    switchLink.textContent = '로그인';
+  } else {
+    title.textContent = '로그인';
+    submit.textContent = '로그인';
+    switchText.textContent = '계정이 없으신가요?';
+    switchLink.textContent = '회원가입';
+  }
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authUsername').value = '';
+  document.getElementById('authPassword').value = '';
+  modal.style.display = 'flex';
+  setTimeout(() => document.getElementById('authUsername').focus(), 50);
+}
+function closeAuthModal() {
+  document.getElementById('authModal').style.display = 'none';
+}
+function switchAuthMode() {
+  openAuthModal(authMode === 'login' ? 'register' : 'login');
+}
+
+async function submitAuth() {
+  const u = document.getElementById('authUsername').value.trim();
+  const p = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  errEl.textContent = '';
+  if (!u || !p) { errEl.textContent = '아이디/비밀번호 입력'; return; }
+  try {
+    const data = await apiPost(`/api/auth/${authMode === 'register' ? 'register' : 'login'}`, { username: u, password: p });
+    saveAuth(data.token, data.user);
+    closeAuthModal();
+    showToast(`✅ ${authMode === 'register' ? '가입 완료 — 새로고침 중' : '로그인됨 — 새로고침 중'}`);
+    setTimeout(() => window.location.reload(), 600);
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
+
+function logout() {
+  if (!confirm('로그아웃 하시겠습니까?')) return;
+  clearAuth();
+  showToast('로그아웃됨 — 새로고침');
+  setTimeout(() => window.location.reload(), 400);
+}
+
+function updateAuthBar() {
+  const guest = document.getElementById('authGuest');
+  const user = document.getElementById('authUser');
+  const nameEl = document.getElementById('authUserName');
+  const statsEl = document.getElementById('authUserStats');
+  if (!guest || !user) return;
+  if (authToken && authUser) {
+    guest.style.display = 'none';
+    user.style.display = 'flex';
+    nameEl.textContent = `👤 ${authUser.username}`;
+    const total = authUser.total_games || 0;
+    const wins = authUser.wins || 0;
+    const rate = total > 0 ? Math.round((wins / total) * 100) : 0;
+    statsEl.textContent = `${total}전 ${wins}승 ${authUser.losses || 0}패 (승률 ${rate}%)`;
+  } else {
+    guest.style.display = 'flex';
+    user.style.display = 'none';
+  }
+}
+
+async function openMyStats() {
+  if (!authUser) return;
+  const modal = document.getElementById('statsModal');
+  document.getElementById('statsModalTitle').textContent = `${authUser.username} 님 전적`;
+  document.getElementById('statsModalBody').innerHTML = '<div class="stats-loading">불러오는 중...</div>';
+  modal.style.display = 'flex';
+  try {
+    const data = await apiGet(`/api/stats/${encodeURIComponent(authUser.username)}`);
+    renderStatsModal(data);
+  } catch (e) {
+    document.getElementById('statsModalBody').innerHTML = `<div class="stats-error">조회 실패: ${e.message}</div>`;
+  }
+}
+
+function renderStatsModal(data) {
+  const u = data.user || {};
+  const total = u.total_games || 0;
+  const wins = u.wins || 0;
+  const rate = total > 0 ? ((wins / total) * 100).toFixed(1) : '0.0';
+  const recent = data.recent || [];
+  let recentHtml = '<div class="stats-empty">최근 경기 기록 없음</div>';
+  if (recent.length > 0) {
+    recentHtml = `<table class="stats-table">
+      <thead><tr><th>결과</th><th>탱크</th><th>킬</th><th>데미지</th><th>점수</th><th>일시</th></tr></thead>
+      <tbody>${recent.map(m => `<tr class="${m.won ? 'win' : 'loss'}">
+        <td>${m.won ? '🏆 WIN' : 'LOSS'}</td>
+        <td>${m.tank_type || '-'}</td>
+        <td>${m.kills || 0}</td>
+        <td>${m.damage_dealt || 0}</td>
+        <td>${m.score || 0}</td>
+        <td>${formatRelativeTime(m.played_at)}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+  document.getElementById('statsModalBody').innerHTML = `
+    <div class="stats-summary">
+      <div class="ss-card"><div class="ss-num">${total}</div><div class="ss-label">총 전적</div></div>
+      <div class="ss-card win"><div class="ss-num">${wins}</div><div class="ss-label">승</div></div>
+      <div class="ss-card loss"><div class="ss-num">${u.losses || 0}</div><div class="ss-label">패</div></div>
+      <div class="ss-card"><div class="ss-num">${rate}%</div><div class="ss-label">승률</div></div>
+      <div class="ss-card"><div class="ss-num">${u.total_kills || 0}</div><div class="ss-label">총 킬</div></div>
+      <div class="ss-card"><div class="ss-num">${u.total_damage || 0}</div><div class="ss-label">총 데미지</div></div>
+    </div>
+    <h3 class="stats-h3">최근 경기 (최대 20)</h3>
+    ${recentHtml}
+  `;
+}
+
+async function openLeaderboard() {
+  const modal = document.getElementById('statsModal');
+  document.getElementById('statsModalTitle').textContent = '🏆 RANKING (TOP 20)';
+  document.getElementById('statsModalBody').innerHTML = '<div class="stats-loading">불러오는 중...</div>';
+  modal.style.display = 'flex';
+  try {
+    const data = await apiGet('/api/leaderboard');
+    const entries = data.entries || [];
+    if (entries.length === 0) {
+      document.getElementById('statsModalBody').innerHTML = '<div class="stats-empty">아직 기록된 전적이 없습니다</div>';
+      return;
+    }
+    const rows = entries.map((e, i) => {
+      const total = e.total_games || 0;
+      const wins = e.wins || 0;
+      const rate = total > 0 ? ((wins / total) * 100).toFixed(1) : '0.0';
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+      return `<tr><td>${medal}</td><td>${e.username}</td><td>${wins}</td><td>${e.losses || 0}</td><td>${rate}%</td><td>${e.total_kills || 0}</td><td>${e.total_damage || 0}</td></tr>`;
+    }).join('');
+    document.getElementById('statsModalBody').innerHTML = `
+      <table class="stats-table">
+        <thead><tr><th>순위</th><th>아이디</th><th>승</th><th>패</th><th>승률</th><th>킬</th><th>데미지</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  } catch (e) {
+    document.getElementById('statsModalBody').innerHTML = `<div class="stats-error">조회 실패: ${e.message}</div>`;
+  }
+}
+function closeStatsModal() {
+  document.getElementById('statsModal').style.display = 'none';
+}
+
+function formatRelativeTime(iso) {
+  if (!iso) return '-';
+  const t = new Date(iso).getTime();
+  const diff = Date.now() - t;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return '방금';
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  const d = Math.floor(hr / 24);
+  if (d < 30) return `${d}일 전`;
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
+// 모달 입력에서 Enter로 제출
+document.addEventListener('DOMContentLoaded', () => {
+  const u = document.getElementById('authUsername');
+  const p = document.getElementById('authPassword');
+  [u, p].forEach(el => {
+    if (!el) return;
+    el.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.isComposing) submitAuth();
+    });
+  });
+});
+
+// 초기 로그인 상태 갱신
+updateAuthBar();
+
 // === Room handling: URL ?room=XXXX ===
 const urlParams = new URLSearchParams(window.location.search);
 let roomId = (urlParams.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
@@ -23,6 +249,7 @@ if (!roomId) {
 
 const socket = io({
   query: { room: roomId },
+  auth: { token: authToken || '' },
 });
 
 // DOM refs

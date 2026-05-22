@@ -2,20 +2,173 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*' },         // 외부 접속 허용 (ngrok/배포 환경 대비)
+  cors: { origin: '*' },
   maxHttpBufferSize: 1e6,
 });
 
+app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
   }
 }));
+
+// === Auth & DB (Supabase) ===
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const AUTH_ENABLED = !!(SUPABASE_URL && SUPABASE_KEY);
+const supabase = AUTH_ENABLED ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } }) : null;
+
+if (!AUTH_ENABLED) {
+  console.warn('⚠️  SUPABASE_URL / SUPABASE_KEY not set — auth & stats disabled. Game still works as guest-only.');
+} else {
+  console.log('✅ Supabase connected, auth & stats enabled');
+}
+
+function signToken(user) {
+  return jwt.sign({ uid: user.id, u: user.username }, JWT_SECRET, { expiresIn: '30d' });
+}
+function verifyToken(token) {
+  try { return jwt.verify(token, JWT_SECRET); } catch (e) { return null; }
+}
+function authError(res, code, msg) { return res.status(code).json({ error: msg }); }
+
+// === Auth routes ===
+app.post('/api/auth/register', async (req, res) => {
+  if (!AUTH_ENABLED) return authError(res, 503, '인증 서비스가 비활성화되어 있습니다');
+  const { username, password } = req.body || {};
+  if (!username || !password) return authError(res, 400, '아이디/비밀번호 필요');
+  const u = String(username).trim().toLowerCase();
+  if (!/^[a-z0-9_]{3,16}$/.test(u)) return authError(res, 400, '아이디는 영문/숫자/_ 3-16자');
+  if (String(password).length < 4) return authError(res, 400, '비밀번호 최소 4자');
+
+  const { data: existing } = await supabase.from('users').select('id').eq('username', u).maybeSingle();
+  if (existing) return authError(res, 409, '이미 사용 중인 아이디');
+
+  const hash = await bcrypt.hash(password, 10);
+  const { data, error } = await supabase
+    .from('users')
+    .insert({ username: u, password_hash: hash })
+    .select('id, username, wins, losses, total_games, total_kills, total_damage')
+    .single();
+  if (error) return authError(res, 500, '가입 실패: ' + error.message);
+  const token = signToken(data);
+  res.json({ token, user: data });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  if (!AUTH_ENABLED) return authError(res, 503, '인증 서비스가 비활성화되어 있습니다');
+  const { username, password } = req.body || {};
+  if (!username || !password) return authError(res, 400, '아이디/비밀번호 필요');
+  const u = String(username).trim().toLowerCase();
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, username, password_hash, wins, losses, total_games, total_kills, total_damage')
+    .eq('username', u).maybeSingle();
+  if (error || !user) return authError(res, 401, '아이디/비밀번호 불일치');
+  const ok = await bcrypt.compare(password, user.password_hash);
+  if (!ok) return authError(res, 401, '아이디/비밀번호 불일치');
+  const token = signToken(user);
+  const { password_hash, ...safe } = user;
+  res.json({ token, user: safe });
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  if (!AUTH_ENABLED) return authError(res, 503, 'disabled');
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const payload = verifyToken(token);
+  if (!payload) return authError(res, 401, 'invalid token');
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, username, wins, losses, total_games, total_kills, total_damage, created_at')
+    .eq('id', payload.uid).maybeSingle();
+  if (error || !data) return authError(res, 404, 'user not found');
+  res.json({ user: data });
+});
+
+app.get('/api/leaderboard', async (req, res) => {
+  if (!AUTH_ENABLED) return res.json({ entries: [] });
+  const { data, error } = await supabase
+    .from('users')
+    .select('username, wins, losses, total_games, total_kills, total_damage')
+    .order('wins', { ascending: false })
+    .order('total_kills', { ascending: false })
+    .limit(20);
+  if (error) return authError(res, 500, error.message);
+  res.json({ entries: data || [] });
+});
+
+app.get('/api/stats/:username', async (req, res) => {
+  if (!AUTH_ENABLED) return authError(res, 503, 'disabled');
+  const u = String(req.params.username || '').trim().toLowerCase();
+  const { data, error } = await supabase
+    .from('users')
+    .select('username, wins, losses, total_games, total_kills, total_damage, created_at')
+    .eq('username', u).maybeSingle();
+  if (error || !data) return authError(res, 404, 'not found');
+  const { data: matches } = await supabase
+    .from('matches')
+    .select('tank_type, won, kills, damage_dealt, score, played_at')
+    .eq('username', u)
+    .order('played_at', { ascending: false })
+    .limit(20);
+  res.json({ user: data, recent: matches || [] });
+});
+
+// === Stats persistence helpers ===
+async function persistMatchResult(room, winnerId) {
+  if (!AUTH_ENABLED) return;
+  const inserts = [];
+  for (const [pid, p] of Object.entries(room.players)) {
+    if (!p.userId) continue; // 게스트는 기록 안 함
+    const won = pid === winnerId;
+    inserts.push({
+      user_id: p.userId,
+      username: p.username || p.name,
+      room_id: room.id,
+      tank_type: p.tankType,
+      won,
+      kills: p.kills || 0,
+      damage_dealt: Math.round(p.damageDealt || 0),
+      score: room.scores[pid] || 0,
+    });
+  }
+  if (inserts.length === 0) return;
+  try {
+    await supabase.from('matches').insert(inserts);
+    // 누적 stats 업데이트
+    for (const m of inserts) {
+      await supabase.rpc('increment_user_stats', {
+        p_user_id: m.user_id,
+        p_won: m.won,
+        p_kills: m.kills,
+        p_damage: m.damage_dealt,
+      }).catch(async () => {
+        // RPC 없으면 fallback: SELECT 후 UPDATE
+        const { data: cur } = await supabase.from('users').select('wins, losses, total_games, total_kills, total_damage').eq('id', m.user_id).single();
+        if (!cur) return;
+        await supabase.from('users').update({
+          wins: (cur.wins || 0) + (m.won ? 1 : 0),
+          losses: (cur.losses || 0) + (m.won ? 0 : 1),
+          total_games: (cur.total_games || 0) + 1,
+          total_kills: (cur.total_kills || 0) + m.kills,
+          total_damage: (cur.total_damage || 0) + m.damage_dealt,
+        }).eq('id', m.user_id);
+      });
+    }
+  } catch (e) {
+    console.error('persistMatchResult error', e);
+  }
+}
 
 // === Game constants ===
 const MAX_PLAYERS = 10;
@@ -340,8 +493,9 @@ function nextTurnInner(room) {
   const totalPlayers = Object.keys(room.players).length;
 
   if (alivePlayers.length <= 1 && totalPlayers > 1) {
+    let winnerId = null;
     if (alivePlayers.length === 1) {
-      const winnerId = alivePlayers[0];
+      winnerId = alivePlayers[0];
       if (!room.scores[winnerId]) room.scores[winnerId] = 0;
       room.scores[winnerId] += 100;
     }
@@ -354,6 +508,9 @@ function nextTurnInner(room) {
     room.phase = 'gameover';
     broadcastState(room);
     if (room.turnTimer) { clearInterval(room.turnTimer); room.turnTimer = null; }
+
+    // 전적 기록 (비동기, 결과 기다리지 않음)
+    persistMatchResult(room, winnerId).catch(e => console.error('match save error', e));
 
     if (room.lobbyReturnTimer) clearTimeout(room.lobbyReturnTimer);
     room.gameoverEndsAt = Date.now() + 5000;
@@ -451,9 +608,17 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 
     if (dist < radius * 1.5) {
       const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)));
-      player.hp = Math.max(0, player.hp - Math.max(damage, 5));
+      const actualDamage = Math.max(damage, 5);
+      player.hp = Math.max(0, player.hp - actualDamage);
+      // shooter 통계 추적 (자기 자신 피격은 제외)
+      if (shooter && shooter.id !== id) {
+        shooter.damageDealt = (shooter.damageDealt || 0) + actualDamage;
+      }
       if (player.hp <= 0) {
         player.alive = false;
+        if (shooter && shooter.id !== id) {
+          shooter.kills = (shooter.kills || 0) + 1;
+        }
         if (room.currentTurn && room.currentTurn !== id) {
           if (!room.scores[room.currentTurn]) room.scores[room.currentTurn] = 0;
           room.scores[room.currentTurn] += 50;
@@ -585,7 +750,7 @@ function startFire(room, player, weaponType, useDouble) {
       };
       broadcastState(room);
       setTimeout(() => {
-        applyExplosion(room, px, py, 'laser_guided');
+        applyExplosion(room, px, py, 'laser_guided', null, player);
         if (room.airstrike) room.airstrike.phase = 'bombing';
         broadcastState(room);
       }, AIRSTRIKE_INCOMING_MS);
@@ -726,10 +891,24 @@ app.get('/api/new-room', (req, res) => {
 });
 
 // === Socket.IO ===
+// Socket.IO 인증 미들웨어
+io.use((socket, next) => {
+  const token = (socket.handshake.auth && socket.handshake.auth.token)
+    || (socket.handshake.query && socket.handshake.query.token);
+  if (token && AUTH_ENABLED) {
+    const payload = verifyToken(token);
+    if (payload) {
+      socket.data.userId = payload.uid;
+      socket.data.username = payload.u;
+    }
+  }
+  next();
+});
+
 io.on('connection', (socket) => {
   const rawRoom = socket.handshake.query && socket.handshake.query.room;
   const room = getOrCreateRoom(rawRoom);
-  console.log(`Player connected: ${socket.id} → room ${room.id}`);
+  console.log(`Player connected: ${socket.id} → room ${room.id} ${socket.data.username ? `(user: ${socket.data.username})` : '(guest)'}`);
 
   const playerCount = Object.keys(room.players).length;
 
@@ -760,9 +939,14 @@ io.on('connection', (socket) => {
   }
 
   const defaultTankDef = getTankDef(DEFAULT_TANK);
+  const initialName = socket.data.username
+    ? String(socket.data.username).toUpperCase().substring(0, 12)
+    : TANK_NAMES[colorIndex];
   room.players[socket.id] = {
     id: socket.id,
-    name: TANK_NAMES[colorIndex],
+    name: initialName,
+    userId: socket.data.userId || null,
+    username: socket.data.username || null,
     color: assignedColor,
     tankType: DEFAULT_TANK,
     x: 0,
@@ -776,6 +960,8 @@ io.on('connection', (socket) => {
     doubleShots: STARTING_DOUBLE_SHOTS,
     doubleShotPending: false,
     laserShots: 0,
+    kills: 0,
+    damageDealt: 0,
   };
 
   if (!room.scores[socket.id]) {
@@ -793,6 +979,8 @@ io.on('connection', (socket) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
     if (r.players[socket.id]) {
+      // 로그인 사용자는 이름 변경 불가 (계정 username 사용)
+      if (r.players[socket.id].userId) return;
       const cleaned = String(name || '').substring(0, 12).trim();
       if (!cleaned) return;
       const oldName = r.players[socket.id].name;
@@ -816,6 +1004,8 @@ io.on('connection', (socket) => {
         r.players[id].doubleShotPending = false;
         r.players[id].laserShots = 0;
         r.players[id].moveBudget = tankDef.move;
+        r.players[id].kills = 0;
+        r.players[id].damageDealt = 0;
       });
       startNewRound(r);
     }

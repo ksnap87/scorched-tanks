@@ -15,6 +15,23 @@
       <h1 class="game-title">SCORCHED EARTH</h1>
       <p class="game-subtitle">Tank Artillery Battle</p>
 
+      <!-- AUTH BAR -->
+      <div class="auth-bar" id="authBar">
+        <div class="auth-guest" id="authGuest">
+          <span class="auth-status">👤 게스트 (전적 기록 X)</span>
+          <button class="btn-auth" onclick="openAuthModal('login')">LOG IN</button>
+          <button class="btn-auth primary" onclick="openAuthModal('register')">SIGN UP</button>
+          <button class="btn-auth ghost" onclick="openLeaderboard()">🏆 RANKING</button>
+        </div>
+        <div class="auth-user" id="authUser" style="display:none;">
+          <span class="auth-name" id="authUserName">—</span>
+          <span class="auth-stats" id="authUserStats">전적 0전</span>
+          <button class="btn-auth ghost" onclick="openMyStats()">내 전적</button>
+          <button class="btn-auth ghost" onclick="openLeaderboard()">🏆 RANKING</button>
+          <button class="btn-auth ghost" onclick="logout()">LOG OUT</button>
+        </div>
+      </div>
+
       <!-- ROOM INFO BAR -->
       <div class="room-info-bar">
         <div class="room-info-block">
@@ -171,6 +188,45 @@
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>
+
+  <!-- Auth Modal -->
+  <div class="modal-backdrop" id="authModal" style="display:none;" onclick="if(event.target===this)closeAuthModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="authModalTitle">로그인</h2>
+        <button class="modal-close" onclick="closeAuthModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>아이디</label>
+          <input type="text" id="authUsername" maxlength="16" autocomplete="username" placeholder="영문/숫자/_ 3-16자">
+        </div>
+        <div class="form-row">
+          <label>비밀번호</label>
+          <input type="password" id="authPassword" maxlength="64" autocomplete="current-password" placeholder="최소 4자">
+        </div>
+        <div class="auth-error" id="authError"></div>
+        <button class="btn-auth-submit" id="authSubmit" onclick="submitAuth()">로그인</button>
+        <div class="auth-switch">
+          <span id="authSwitchText">계정이 없으신가요?</span>
+          <a href="#" id="authSwitchLink" onclick="switchAuthMode();return false;">회원가입</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Modal -->
+  <div class="modal-backdrop" id="statsModal" style="display:none;" onclick="if(event.target===this)closeStatsModal()">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h2 id="statsModalTitle">전적</h2>
+        <button class="modal-close" onclick="closeStatsModal()">✕</button>
+      </div>
+      <div class="modal-body" id="statsModalBody">
+        <div class="stats-loading">불러오는 중...</div>
+      </div>
+    </div>
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="game.js"></script>
