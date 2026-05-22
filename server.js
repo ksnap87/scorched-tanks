@@ -63,6 +63,22 @@ const TANK_NAMES = [
   'FOXTROT', 'GOLF', 'HOTEL', 'INDIA', 'JULIET'
 ];
 
+// === Tank types (6개국 전차) — 능력치 합계 100 ===
+// HP/4 + range×25 + move/8 + speed×25 = 100
+// range: 포탄 초기속도 multiplier (사거리에 영향)
+// speed: 포탄 속도 추가 multiplier (비행 시간 단축, 운동에너지 증가)
+// move: 게임 전체 이동 가능 거리 (px)
+const TANK_TYPES = {
+  K2:    { id: 'K2',    name: 'K2 흑표',     country: '한국', flag: '🇰🇷', hp: 100, range: 1.0, move: 200, speed: 1.0, desc: '균형형' },
+  M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국', flag: '🇺🇸', hp: 140, range: 1.0, move: 120, speed: 1.0, desc: '중장갑형' },
+  ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',      country: '중국', flag: '🇨🇳', hp:  80, range: 0.8, move: 280, speed: 1.0, desc: '기동형' },
+  T90:   { id: 'T90',   name: 'T-90',        country: '러시아', flag: '🇷🇺', hp: 100, range: 0.8, move: 200, speed: 1.2, desc: '속사형' },
+  LEO2:  { id: 'LEO2',  name: 'Leopard 2',   country: '독일', flag: '🇩🇪', hp: 100, range: 1.4, move: 120, speed: 1.0, desc: '장거리형' },
+  T10:   { id: 'T10',   name: '10식',        country: '일본', flag: '🇯🇵', hp:  60, range: 1.0, move: 280, speed: 1.0, desc: '경량속도형' },
+};
+const DEFAULT_TANK = 'K2';
+function getTankDef(id) { return TANK_TYPES[id] || TANK_TYPES[DEFAULT_TANK]; }
+
 // === Rooms (multi-room support) ===
 const rooms = {};
 const nextTurnFlags = {};
@@ -187,9 +203,11 @@ function placeTanks(room) {
     const jitter = (Math.random() - 0.5) * Math.min(spacing * 0.5, 80);
     const x = Math.max(margin, Math.min(CANVAS_WIDTH - margin, slots[i] + jitter));
     const y = getTerrainY(room.terrain, x);
+    const tankDef = getTankDef(room.players[id].tankType);
     room.players[id].x = x;
     room.players[id].y = y - TANK_HEIGHT / 2;
-    room.players[id].hp = TANK_HP;
+    room.players[id].hp = tankDef.hp;
+    room.players[id].maxHp = tankDef.hp;
     room.players[id].alive = true;
     room.players[id].angle = 45;
     room.players[id].power = 50;
@@ -226,14 +244,16 @@ function resetToLobby(room) {
   room.turnTimeLeft = 10;
 
   Object.values(room.players).forEach(p => {
+    const tankDef = getTankDef(p.tankType);
     p.alive = true;
-    p.hp = TANK_HP;
+    p.hp = tankDef.hp;
+    p.maxHp = tankDef.hp;
     p.angle = 45;
     p.power = 50;
     p.doubleShots = STARTING_DOUBLE_SHOTS;
     p.doubleShotPending = false;
     p.laserShots = 0;
-    p.moveBudget = MOVE_RANGE_PER_TURN;
+    p.moveBudget = tankDef.move;
   });
 
   broadcastState(room);
@@ -374,7 +394,13 @@ function nextTurnInner(room) {
   broadcastState(room);
 }
 
-function applyExplosion(room, x, y, weaponType = 'normal') {
+// === Physical scale ===
+// 탱크 크기 4m = 30 px → 1 px ≈ 0.133 m, 캔버스 1400 px ≈ 186 m
+// 60 fps 가정 → 속도 v(px/frame) × 60 × 0.133 ≈ 실제 m/s
+// 운동에너지 KE = 0.5 × m × v², 데미지는 KE에 비례 (m=1 가정)
+const SPEED_REF = 15;          // 이 속도(px/frame)일 때 운동에너지 계수 1.0
+
+function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = null) {
   let radius = EXPLOSION_RADIUS;
   let maxDamage = PROJECTILE_DAMAGE;
 
@@ -385,6 +411,13 @@ function applyExplosion(room, x, y, weaponType = 'normal') {
     radius = LASER_RADIUS;
     maxDamage = LASER_DAMAGE;
   }
+
+  // 운동에너지 비례 데미지: damage = (v² / v_ref²) × 무기 데미지 × 거리 감쇠
+  // 빠른 직격 = 큰 데미지, 느린 곡사 = 작은 데미지 (실제 포탄과 같은 거동)
+  // laser_guided 는 폭격기 무기라 속도 무관 (factor=1.0)
+  const speedFactor = (projectileSpeed != null && weaponType !== 'laser_guided')
+    ? (projectileSpeed * projectileSpeed) / (SPEED_REF * SPEED_REF)
+    : 1.0;
 
   for (let i = 0; i < room.terrain.length; i++) {
     const tx = i * TERRAIN_RESOLUTION;
@@ -407,7 +440,7 @@ function applyExplosion(room, x, y, weaponType = 'normal') {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < radius * 1.5) {
-      const damage = Math.round(maxDamage * (1 - dist / (radius * 1.5)));
+      const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)));
       player.hp = Math.max(0, player.hp - Math.max(damage, 5));
       if (player.hp <= 0) {
         player.alive = false;
@@ -447,10 +480,13 @@ function applyExplosion(room, x, y, weaponType = 'normal') {
   room.explosions.push({ x, y, radius, time: Date.now() });
 }
 
-function simulateProjectile(startX, startY, angle, power) {
+function simulateProjectile(startX, startY, angle, power, shooter) {
+  const tankDef = shooter ? getTankDef(shooter.tankType) : getTankDef(DEFAULT_TANK);
+  // range × speed = 포탄 초기속도 multiplier (사거리/속도 둘 다 영향)
+  const factor = (tankDef.range || 1.0) * (tankDef.speed || 1.0);
   const radians = angle * Math.PI / 180;
-  const vx = Math.cos(radians) * power * 0.18;
-  const vy = -Math.sin(radians) * power * 0.18;
+  const vx = Math.cos(radians) * power * 0.18 * factor;
+  const vy = -Math.sin(radians) * power * 0.18 * factor;
 
   return { x: startX, y: startY - 20, vx, vy };
 }
@@ -490,7 +526,7 @@ function startFire(room, player, weaponType, useDouble) {
     }
   }
 
-  const proj = simulateProjectile(player.x, player.y, player.angle, player.power);
+  const proj = simulateProjectile(player.x, player.y, player.angle, player.power, player);
   proj.type = actualWeapon;
   proj.shooterId = player.id;
   room.projectile = proj;
@@ -526,6 +562,8 @@ function startFire(room, player, weaponType, useDouble) {
   };
 
   const detonate = (px, py) => {
+    // 명중 직전 포탄의 최종 속력 (운동에너지 데미지 계산용)
+    const finalSpeed = Math.sqrt(proj.vx * proj.vx + proj.vy * proj.vy);
     if (proj.type === 'laser_guided') {
       room.airstrike = {
         targetX: px,
@@ -547,7 +585,7 @@ function startFire(room, player, weaponType, useDouble) {
         finishShot();
       }, AIRSTRIKE_INCOMING_MS + AIRSTRIKE_LINGER_MS);
     } else {
-      applyExplosion(room, px, py, proj.type);
+      applyExplosion(room, px, py, proj.type, finalSpeed);
       broadcastState(room);
       finishShot();
     }
@@ -711,17 +749,20 @@ io.on('connection', (socket) => {
     room.host = socket.id;
   }
 
+  const defaultTankDef = getTankDef(DEFAULT_TANK);
   room.players[socket.id] = {
     id: socket.id,
     name: TANK_NAMES[colorIndex],
     color: assignedColor,
+    tankType: DEFAULT_TANK,
     x: 0,
     y: 0,
     angle: 45,
     power: 50,
-    hp: TANK_HP,
+    hp: defaultTankDef.hp,
+    maxHp: defaultTankDef.hp,
     alive: true,
-    moveBudget: MOVE_RANGE_PER_TURN,
+    moveBudget: defaultTankDef.move,
     doubleShots: STARTING_DOUBLE_SHOTS,
     doubleShotPending: false,
     laserShots: 0,
@@ -731,7 +772,7 @@ io.on('connection', (socket) => {
     room.scores[socket.id] = 0;
   }
 
-  socket.emit('init', { playerId: socket.id, roomId: room.id });
+  socket.emit('init', { playerId: socket.id, roomId: room.id, tankTypes: TANK_TYPES });
   if (room.chatHistory.length > 0) {
     socket.emit('chatHistory', room.chatHistory);
   }
@@ -759,14 +800,31 @@ io.on('connection', (socket) => {
       r.round = 1;
       r.scores = {};
       Object.keys(r.players).forEach(id => {
+        const tankDef = getTankDef(r.players[id].tankType);
         r.scores[id] = 0;
         r.players[id].doubleShots = STARTING_DOUBLE_SHOTS;
         r.players[id].doubleShotPending = false;
         r.players[id].laserShots = 0;
-        r.players[id].moveBudget = MOVE_RANGE_PER_TURN;
+        r.players[id].moveBudget = tankDef.move;
       });
       startNewRound(r);
     }
+  });
+
+  // 대기방에서만 탱크 종류 변경
+  socket.on('setTank', (tankId) => {
+    const r = rooms[socket.data.roomId];
+    if (!r) return;
+    if (r.phase !== 'lobby') return;
+    if (!TANK_TYPES[tankId]) return;
+    const p = r.players[socket.id];
+    if (!p) return;
+    p.tankType = tankId;
+    const tankDef = getTankDef(tankId);
+    p.hp = tankDef.hp;
+    p.maxHp = tankDef.hp;
+    p.moveBudget = tankDef.move;
+    broadcastState(r);
   });
 
   // 키보드/버튼 1회 이동 (5px)

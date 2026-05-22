@@ -81,6 +81,8 @@ let doubleShotMode = false;
 let currentWeapon = 'normal';
 let gameChatOpen = true;
 let chatMessageIds = new Set();
+let tankTypes = null;
+let selectedTank = 'K2';
 
 // === Init room code display ===
 updateRoomCodeDisplay();
@@ -158,6 +160,10 @@ for (let i = 0; i < 14; i++) {
 
 socket.on('init', (data) => {
   myId = data.playerId;
+  if (data.tankTypes) {
+    tankTypes = data.tankTypes;
+    renderTankGrid();
+  }
   if (data.roomId) {
     roomId = data.roomId;
     const url = new URL(window.location);
@@ -168,6 +174,40 @@ socket.on('init', (data) => {
     updateRoomCodeDisplay();
   }
 });
+
+function renderTankGrid() {
+  const grid = document.getElementById('tankGrid');
+  if (!grid || !tankTypes) return;
+  let html = '';
+  Object.values(tankTypes).forEach(t => {
+    const isSel = (selectedTank === t.id);
+    html += `<div class="tank-card${isSel ? ' selected' : ''}" data-tank="${t.id}" onclick="selectTank('${t.id}')">
+      <div class="tc-head">
+        <span class="tc-flag">${t.flag}</span>
+        <span class="tc-name">${t.name}</span>
+      </div>
+      <div class="tc-country">${t.country} · ${t.desc}</div>
+      <div class="tc-stats">
+        <div class="ts-row"><span class="ts-label">HP</span><span class="ts-bar"><span class="ts-fill hp" style="width:${Math.min(100, t.hp / 1.4)}%"></span></span><span class="ts-val">${t.hp}</span></div>
+        <div class="ts-row"><span class="ts-label">사거리</span><span class="ts-bar"><span class="ts-fill range" style="width:${Math.min(100, t.range * 60)}%"></span></span><span class="ts-val">${t.range}×</span></div>
+        <div class="ts-row"><span class="ts-label">이동</span><span class="ts-bar"><span class="ts-fill move" style="width:${Math.min(100, t.move / 2.8)}%"></span></span><span class="ts-val">${t.move}</span></div>
+        <div class="ts-row"><span class="ts-label">속도</span><span class="ts-bar"><span class="ts-fill speed" style="width:${Math.min(100, t.speed * 60)}%"></span></span><span class="ts-val">${t.speed}×</span></div>
+      </div>
+    </div>`;
+  });
+  grid.innerHTML = html;
+}
+
+function selectTank(id) {
+  if (!tankTypes || !tankTypes[id]) return;
+  if (state && state.phase !== 'lobby') {
+    showToast('⚠️ 게임 중에는 탱크 변경 불가');
+    return;
+  }
+  selectedTank = id;
+  socket.emit('setTank', id);
+  renderTankGrid();
+}
 
 socket.on('serverFull', () => {
   showToast('⚠️ 방이 꽉 찼습니다');
@@ -184,6 +224,14 @@ socket.on('gameState', (data) => {
   if (state.roomId && state.roomId !== roomId) {
     roomId = state.roomId;
     updateRoomCodeDisplay();
+  }
+
+  // 본인 탱크 선택 동기화
+  if (state.players && myId && state.players[myId] && state.players[myId].tankType) {
+    if (selectedTank !== state.players[myId].tankType) {
+      selectedTank = state.players[myId].tankType;
+      renderTankGrid();
+    }
   }
 
   if (state.phase === 'lobby') {
@@ -360,11 +408,15 @@ function updateLobby() {
       const p = players[i];
       const isMe = p.id === myId;
       const isHost = p.id === state.host;
+      const tankDef = (tankTypes && p.tankType && tankTypes[p.tankType]) || null;
+      const flag = tankDef ? tankDef.flag : '⬟';
+      const tankShort = tankDef ? tankDef.id : '';
       html += `<div class="player-slot filled" style="border-color: ${p.color}40;">
-        <div class="slot-icon" style="color: ${p.color};">⬟</div>
+        <div class="slot-icon" style="color: ${p.color};">${flag}</div>
         <div class="slot-name" style="color: ${p.color};">
           ${isHost ? '👑 ' : ''}${p.name}${isMe ? ' (YOU)' : ''}
         </div>
+        <div class="slot-tank">${tankShort}</div>
       </div>`;
     } else {
       html += `<div class="player-slot">
@@ -500,10 +552,13 @@ function updateControls() {
 
   if (me) {
     if (!isMyTurn) {
-      angleSlider.value = me.angle;
+      const uiAngle = serverToUiAngle(me.angle);
+      angleSlider.value = uiAngle;
       powerSlider.value = me.power;
-      if (angleInput) angleInput.value = me.angle;
+      if (angleInput) angleInput.value = uiAngle;
       if (powerInput) powerInput.value = me.power;
+      if (angleValue) angleValue.textContent = formatUiAngle(uiAngle);
+      if (powerValue) powerValue.textContent = me.power;
     }
 
     const budget = me.moveBudget != null ? Math.round(me.moveBudget) : 0;
@@ -614,12 +669,22 @@ function selectWeapon(w) {
 }
 
 // === Angle / Power input handlers ===
-function clampAndApplyAngle(v) {
-  if (!Number.isFinite(v)) v = 45;
-  v = Math.max(0, Math.min(180, Math.round(v)));
-  angleSlider.value = v;
-  if (angleInput) angleInput.value = v;
-  socket.emit('setAngle', v);
+// UI 각도: -90 (왼쪽) ~ 0 (수직 위) ~ +90 (오른쪽)
+// 서버 각도: 0 (오른쪽) ~ 90 (수직 위) ~ 180 (왼쪽)
+// 변환: server = 90 - ui,  ui = 90 - server
+function uiToServerAngle(ui) { return 90 - ui; }
+function serverToUiAngle(s) { return 90 - s; }
+function formatUiAngle(ui) {
+  if (ui > 0) return `+${ui}°`;
+  return `${ui}°`;
+}
+
+function clampAndApplyAngle(uiVal) {
+  if (!Number.isFinite(uiVal)) uiVal = 45;
+  uiVal = Math.max(-90, Math.min(90, Math.round(uiVal)));
+  angleSlider.value = uiVal;
+  if (angleInput) angleInput.value = uiVal;
+  socket.emit('setAngle', uiToServerAngle(uiVal));
 }
 
 function clampAndApplyPower(v) {
@@ -631,9 +696,10 @@ function clampAndApplyPower(v) {
 }
 
 angleSlider.addEventListener('input', (e) => {
-  const v = parseInt(e.target.value);
-  if (angleInput) angleInput.value = v;
-  socket.emit('setAngle', v);
+  const ui = parseInt(e.target.value);
+  if (angleInput) angleInput.value = ui;
+  if (angleValue) angleValue.textContent = formatUiAngle(ui);
+  socket.emit('setAngle', uiToServerAngle(ui));
 });
 
 powerSlider.addEventListener('input', (e) => {
@@ -729,19 +795,23 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowLeft': {
       e.preventDefault();
       const cur = parseInt(angleSlider.value);
-      const next = Math.min(180, (Number.isFinite(cur) ? cur : me.angle) + 1);
-      angleSlider.value = next;
-      if (angleInput) angleInput.value = next;
-      socket.emit('setAngle', next);
+      const uiNow = Number.isFinite(cur) ? cur : serverToUiAngle(me.angle);
+      const uiNext = Math.max(-90, uiNow - 1);
+      angleSlider.value = uiNext;
+      if (angleInput) angleInput.value = uiNext;
+      if (angleValue) angleValue.textContent = formatUiAngle(uiNext);
+      socket.emit('setAngle', uiToServerAngle(uiNext));
       break;
     }
     case 'ArrowRight': {
       e.preventDefault();
       const cur = parseInt(angleSlider.value);
-      const next = Math.max(0, (Number.isFinite(cur) ? cur : me.angle) - 1);
-      angleSlider.value = next;
-      if (angleInput) angleInput.value = next;
-      socket.emit('setAngle', next);
+      const uiNow = Number.isFinite(cur) ? cur : serverToUiAngle(me.angle);
+      const uiNext = Math.min(90, uiNow + 1);
+      angleSlider.value = uiNext;
+      if (angleInput) angleInput.value = uiNext;
+      if (angleValue) angleValue.textContent = formatUiAngle(uiNext);
+      socket.emit('setAngle', uiToServerAngle(uiNext));
       break;
     }
     case 'ArrowUp': {
@@ -1195,7 +1265,7 @@ function drawTanks() {
       ctx.fillRect(x + i - 1, y + 8, 2, 3);
     }
 
-    const hpPct = player.hp / 100;
+    const hpPct = player.hp / (player.maxHp || 100);
     const hpBarW = 36;
     const hpBarH = 4;
     const hpBarX = x - hpBarW / 2;
