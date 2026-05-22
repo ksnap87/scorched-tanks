@@ -250,48 +250,43 @@ body {
 .lobby-v2 .team-toggle-inline input:checked + span,
 .lobby-v2 .team-toggle-inline:has(input:checked) { color: #FFD93D; border-color: rgba(255, 217, 61, 0.5); }
 
-/* === 팀전 모드 큰 카드 (체크박스 + 제목 + 설명 통합) === */
+/* === 팀전 모드 카드 (한 줄 슬림형) === */
 .lobby-v2 .team-toggle-card {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   width: 100%;
-  padding: 18px 22px;
+  padding: 12px 18px;
   margin: 0;
   background: rgba(255, 217, 61, 0.06);
   border: 2px solid rgba(255, 217, 61, 0.28);
-  border-radius: 14px;
+  border-radius: 12px;
   cursor: pointer;
   user-select: none;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 .lobby-v2 .team-toggle-card:hover {
   background: rgba(255, 217, 61, 0.10);
   border-color: rgba(255, 217, 61, 0.45);
-  transform: translateY(-1px);
 }
 .lobby-v2 .team-toggle-card:has(input:checked) {
-  background: rgba(255, 217, 61, 0.16);
+  background: rgba(255, 217, 61, 0.14);
   border-color: #FFD93D;
-  box-shadow: 0 0 28px rgba(255, 217, 61, 0.35);
-}
-.lobby-v2 .team-toggle-card .ttc-head {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 10px;
+  box-shadow: 0 0 18px rgba(255, 217, 61, 0.3);
 }
 .lobby-v2 .team-toggle-card input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
-  width: 44px;
-  height: 44px;
-  border: 3px solid rgba(255, 217, 61, 0.55);
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 217, 61, 0.55);
+  border-radius: 7px;
   background: rgba(0, 0, 0, 0.35);
   cursor: pointer;
   position: relative;
   margin: 0;
   flex: 0 0 auto;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 .lobby-v2 .team-toggle-card input[type="checkbox"]:checked {
   background: #FFD93D;
@@ -305,56 +300,56 @@ body {
   align-items: center;
   justify-content: center;
   color: #1a1a1a;
-  font-size: 1.8rem;
+  font-size: 1.2rem;
   font-weight: 900;
 }
 .lobby-v2 .team-toggle-card .ttc-title {
-  font-size: 26px;
+  font-size: 1.15rem;
   font-weight: 800;
   color: #FFD93D;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   font-family: 'Orbitron', monospace;
   line-height: 1;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
-.lobby-v2 .team-toggle-card .ttc-on-hint {
-  margin-left: auto;
-  font-size: 1.05rem;
+.lobby-v2 .team-toggle-card .ttc-desc-inline {
+  font-size: 1rem;
   color: #ddd;
-  font-weight: 700;
-  padding: 8px 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
-}
-.lobby-v2 .team-toggle-card:has(input:checked) .ttc-on-hint {
-  color: #1a1a1a;
-  background: #FFD93D;
-  font-weight: 800;
-}
-.lobby-v2 .team-toggle-card:has(input:checked) .ttc-on-hint::before {
-  content: '✅ 활성화됨 · ';
-}
-.lobby-v2 .team-toggle-card .ttc-desc {
-  font-size: 1.05rem;
-  color: #e8e8e8;
-  line-height: 1.6;
+  line-height: 1.4;
   font-weight: 500;
-  padding-left: 60px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
-.lobby-v2 .team-toggle-card .ttc-desc b {
+.lobby-v2 .team-toggle-card .ttc-desc-inline b {
   color: #FFD93D;
-  font-weight: 800;
+  font-weight: 700;
 }
 
-/* 팀존이 10-col player-slots 안에 들어가도 전체 폭 차지 */
+/* 팀존이 10-col player-slots 안에 들어가도 전체 폭 차지, 높이도 일반 모드와 비슷하게 유지 */
 .lobby-v2 .player-slots:has(.team-zones) {
   display: block;
+  min-height: 110px;
 }
 .lobby-v2 .player-slots .team-zones,
 .lobby-v2 .player-slots .team-unassigned {
   width: 100%;
 }
+.lobby-v2 .team-zones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.lobby-v2 .team-zone {
+  padding: 8px 12px;
+}
+.lobby-v2 .team-label {
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
 .lobby-v2 .team-slot-grid {
   grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
 }
 .lobby-v2 .team-toggle-inline input {
   margin: 0;
@@ -368,17 +363,19 @@ body {
   font-weight: 800;
   letter-spacing: 1.5px;
 }
-/* === Typography grading (일관 폰트) ===
-   Section header (h3) : 1.15rem / 800 / Orbitron
-   Body                : 1.05rem
-   Card title          : 1rem / 700
-   Card meta           : 0.92rem
-   Smallest caption    : 0.82rem
+/* === Typography grading (통일된 단계) ===
+   Section header (h3)    : 1.2rem (19.2px) / 800 / Orbitron
+   Team-mode title        : 1.35rem (21.6px) / 800
+   Body / Key hints       : 1.1rem (17.6px)
+   Card title (tank)      : 1.05rem (16.8px) / 800
+   Card meta              : 0.95rem (15.2px)
+   Smallest caption       : 0.85rem (13.6px)
+   kbd badge              : 1rem (16px)
 */
 /* PLAYERS — 10명 가로 1줄 */
 .lobby-v2 .player-list h3 {
   margin: 0 0 12px;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   letter-spacing: 2.5px;
   color: #e8e8e8;
   font-weight: 800;
@@ -388,40 +385,42 @@ body {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   gap: 8px;
+  min-height: 110px;     /* 일반/팀전 모드 전환 시 높이 유지 */
 }
 .lobby-v2 .player-slot {
-  padding: 12px 6px;
-  font-size: 0.92rem;
+  padding: 18px 6px;
+  font-size: 1rem;
   min-width: 0;
   overflow: hidden;
 }
 .lobby-v2 .player-slot .slot-icon {
-  font-size: 1.5rem;
+  font-size: 2rem;
 }
 .lobby-v2 .player-slot .slot-name {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 5px;
+  margin-top: 8px;
 }
 .lobby-v2 .player-slot .slot-tank {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.85;
+  margin-top: 2px;
 }
-/* 키보드 단축키 한 줄 — 균등 분산 (빈공간 제거) */
+/* 키보드 단축키 한 줄 — 균등 분산 */
 .lobby-v2 .key-hints-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 10px 18px;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   color: #e0e0e0;
   line-height: 1.6;
   font-weight: 500;
@@ -435,10 +434,10 @@ body {
 }
 .lobby-v2 .key-hints-bar kbd {
   display: inline-block;
-  min-width: 28px;
+  min-width: 30px;
   text-align: center;
   padding: 5px 10px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   background: rgba(255, 255, 255, 0.13);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
@@ -450,7 +449,7 @@ body {
 /* 탱크 6장 가로 1줄 */
 .lobby-v2 .tank-select h3 {
   margin: 0 0 14px;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   letter-spacing: 2.5px;
   color: #e8e8e8;
   font-weight: 800;
@@ -478,21 +477,21 @@ body {
 }
 .lobby-v2 .tc-hex-svg {
   width: 100%;
-  max-width: 145px;
+  max-width: 150px;
   height: auto;
   aspect-ratio: 1 / 1;
 }
 .lobby-v2 .tc-name {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
 }
 .lobby-v2 .tc-country {
-  font-size: 0.85rem;
-  line-height: 1.35;
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 .lobby-v2 .tc-stats-mini {
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 1rem;
+  line-height: 1.45;
 }
 /* 반응형 */
 @media (max-width: 1380px) {
@@ -1210,12 +1209,12 @@ body {
 
 .lc-header {
   font-family: 'Orbitron', monospace;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 800;
-  color: #e0e0e0;
+  color: #e8e8e8;
   letter-spacing: 3px;
   margin-bottom: 0.8rem;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: linear-gradient(135deg, rgba(30, 144, 255, 0.18), rgba(168, 85, 247, 0.18));
   border-radius: 8px;
   border: 1px solid rgba(30, 144, 255, 0.3);

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=58">
+  <link rel="stylesheet" href="style.css?v=59">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -54,15 +54,10 @@
             <button class="btn btn-start" id="btnStart" onclick="startGame()" disabled>START BATTLE</button>
           </div>
 
-          <label class="team-toggle-card">
-            <div class="ttc-head">
-              <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
-              <span class="ttc-title">⚔️ 팀전 모드</span>
-              <span class="ttc-on-hint">체크하면 활성화</span>
-            </div>
-            <div class="ttc-desc">
-              A팀 vs B팀 최대 <b>5:5</b> · <b>실시간 발사</b>(턴제 X) · 무기별 <b>장전속도</b> 차이 · <b>시즈모드</b>(4초 변환 / 장전+20% / 이동불가) · <b>맵 2배 확장</b>
-            </div>
+          <label class="team-toggle-card team-toggle-card-slim">
+            <input type="checkbox" id="teamModeToggle" onchange="onTeamModeToggle()">
+            <span class="ttc-title">⚔️ 팀전 모드</span>
+            <span class="ttc-desc-inline">A팀 vs B팀 <b>5:5</b> · <b>실시간 발사</b> · <b>시즈모드</b> · <b>맵 2배</b></span>
           </label>
 
           <div class="player-list">
@@ -265,6 +260,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=58"></script>
+  <script src="game.js?v=59"></script>
 </body>
 </html>
