@@ -1186,7 +1186,7 @@ document.addEventListener('keydown', (e) => {
   const me = state.players[myId];
   if (!me) return;
 
-  const oneShotKeys = ['a', 'A', 'd', 'D', 'x', 'X', ' '];
+  const oneShotKeys = ['a', 'A', 'd', 'D', 'x', 'X', ' ', '1', '2', '3', '4', 'r', 'R', 's', 'S'];
   if (e.repeat && oneShotKeys.includes(e.key)) return;
 
   switch (e.key) {
@@ -1245,6 +1245,38 @@ document.addEventListener('keydown', (e) => {
     case 'x': case 'X':
       e.preventDefault();
       toggleDoubleShot();
+      break;
+    // === 무기 선택 단축키 ===
+    case '1':
+      e.preventDefault();
+      selectWeapon('normal');
+      break;
+    case '2':
+      e.preventDefault();
+      selectWeapon('redbean');
+      break;
+    case '3': {
+      e.preventDefault();
+      // ULT는 카운트가 있어야 활성. 없으면 알림.
+      if ((me.laserShots ?? 0) > 0) selectWeapon('laser_guided');
+      else showToast('⚠️ 필살기 없음 (공중 아이템 획득 필요)');
+      break;
+    }
+    case '4': {
+      e.preventDefault();
+      if ((me.nukeShots ?? 0) > 0) selectWeapon('nuke');
+      else showToast('⚠️ NUKE 없음 (공중 아이템 획득 필요)');
+      break;
+    }
+    // === REPAIR / SIEGE ===
+    case 'r': case 'R':
+      e.preventDefault();
+      useRepair();
+      break;
+    case 's': case 'S':
+      e.preventDefault();
+      // 시즈는 팀전 모드에서만 — toggleSiege 자체가 모드 체크
+      toggleSiege();
       break;
   }
 });
@@ -2911,37 +2943,42 @@ function drawTanks() {
       ctx.fillRect(x + i - 1, y + 8, 2, 3);
     }
 
-    // HP 바 (탱크 위 — 원위치)
-    const hpPct = player.hp / (player.maxHp || 100);
-    const hpBarW = 40;
-    const hpBarH = 5;
-    const hpBarX = x - hpBarW / 2;
+    // HP 바 — 본인만 표시 (팀전이면 같은 팀도 표시)
+    const me0 = state.players[myId];
+    const sameTeam = !!(state.teamMode && me0 && me0.team && player.team === me0.team);
+    const showHp = isMe || sameTeam;
     const hpBarY = y - 30;
+    if (showHp) {
+      const hpPct = player.hp / (player.maxHp || 100);
+      const hpBarW = 40;
+      const hpBarH = 5;
+      const hpBarX = x - hpBarW / 2;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.beginPath();
-    ctx.roundRect(hpBarX - 1, hpBarY - 1, hpBarW + 2, hpBarH + 2, 2);
-    ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath();
+      ctx.roundRect(hpBarX - 1, hpBarY - 1, hpBarW + 2, hpBarH + 2, 2);
+      ctx.fill();
 
-    const hpColor = hpPct > 0.5 ? '#2ED573' : hpPct > 0.25 ? '#FFA502' : '#FF4757';
-    ctx.fillStyle = hpColor;
-    ctx.beginPath();
-    ctx.roundRect(hpBarX, hpBarY, hpBarW * hpPct, hpBarH, 2);
-    ctx.fill();
+      const hpColor = hpPct > 0.5 ? '#2ED573' : hpPct > 0.25 ? '#FFA502' : '#FF4757';
+      ctx.fillStyle = hpColor;
+      ctx.beginPath();
+      ctx.roundRect(hpBarX, hpBarY, hpBarW * hpPct, hpBarH, 2);
+      ctx.fill();
 
-    // HP 숫자 (바 바로 위 작게)
-    ctx.font = '600 9px "Orbitron", "Pretendard", system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText(`${Math.max(0, Math.round(player.hp))}/${player.maxHp || 100}`, x, hpBarY - 3);
+      // HP 숫자 (바 바로 위 작게)
+      ctx.font = '600 9px "Orbitron", "Pretendard", system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillText(`${Math.max(0, Math.round(player.hp))}/${player.maxHp || 100}`, x, hpBarY - 3);
+    }
 
-    // 이름 (탱크 아래)
+    // 이름 (탱크 아래) — 항상 보임
     ctx.font = '700 12px "Pretendard", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = isMe ? '#fff' : 'rgba(255,255,255,0.7)';
     ctx.fillText(player.name, x, y + 25);
 
-    // 자기 턴 화살표 (HP 바 위)
+    // 자기 턴 화살표 (HP 바 위 — HP 숨겨도 보임)
     if (isMyTurn) {
       const arrowY = hpBarY - 22 + Math.sin(Date.now() / 300) * 3;
       ctx.fillStyle = color;
