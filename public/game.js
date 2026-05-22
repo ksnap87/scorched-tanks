@@ -539,11 +539,11 @@ function renderSpecPanel() {
     const b = t.bomb2 || {};
     const u = t.ultimate || {};
     const bombLines = [];
-    if (b.kind === 'uranium') bombLines.push(`DOT r${b.dotRadius}/${b.dotDps}HP·s × ${b.dotDuration}s`);
-    if (b.kind === 'shotgun' && b.fire) bombLines.push(`화염 r${b.fire.radius}/${b.fire.dps}HP·s × ${b.fire.duration}s`);
-    if (b.kind === 'guided') bombLines.push(`유도 ${b.guideMs/1000}s`);
-    if (b.multi) bombLines.push(`멀티 ×${b.multi}`);
-    if (b.kind === 'laser_beam') bombLines.push(`관통빔 ${b.range}px / 두께 ${b.beamWidth}`);
+    if (b.kind === 'uranium') bombLines.push(`광역 지속딜 반경${b.dotRadius} · ${b.dotDps}HP/초 × ${b.dotDuration}초`);
+    if (b.kind === 'shotgun' && b.fire) bombLines.push(`화염 광역 반경${b.fire.radius} · ${b.fire.dps}HP/초 × ${b.fire.duration}초`);
+    if (b.kind === 'guided') bombLines.push(`유도 ${b.guideMs/1000}초`);
+    if (b.multi) bombLines.push(`멀티 ×${b.multi}발`);
+    if (b.kind === 'laser_beam') bombLines.push(`관통빔 ${b.range}px · 두께 ${b.beamWidth}`);
     html += `<div class="spec-row${isMine ? ' me' : ''}" style="border-left:3px solid ${color}">
       <div class="sr-head">${t.flag} ${t.name}${isMine ? ' ★ 본인' : ''}</div>
       <div class="sr-desc">${t.country} · ${t.desc}</div>
