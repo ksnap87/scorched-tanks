@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -151,6 +151,9 @@
       <button class="btn-doubleshot" id="btnDoubleShot" onclick="toggleDoubleShot()">
         ⚡ DOUBLE × <span id="doubleShotCount">2</span>
       </button>
+      <button class="btn-repair" id="btnRepair" onclick="useRepair()">
+        🔧 REPAIR × <span id="repairCount">1</span>
+      </button>
       <button class="btn-fire" id="btnFire" onclick="fire()">🔥 FIRE</button>
     </div>
 
@@ -232,6 +235,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=9"></script>
+  <script src="game.js?v=10"></script>
 </body>
 </html>

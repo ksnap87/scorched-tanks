@@ -1086,6 +1086,28 @@ canvas {
   50% { transform: scale(1.04); }
 }
 
+/* Repair button */
+.btn-repair {
+  pointer-events: auto;
+  background: rgba(46, 213, 115, 0.18);
+  border: 1px solid rgba(46, 213, 115, 0.5);
+  color: #7BED9F;
+  font-family: 'Orbitron', monospace;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 1.5px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+.btn-repair:hover:not(:disabled) {
+  background: rgba(46, 213, 115, 0.32);
+  box-shadow: 0 0 18px rgba(46, 213, 115, 0.4);
+}
+.btn-repair:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* Weapon buttons */
 .weapon-group {
   gap: 6px !important;

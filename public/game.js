@@ -841,6 +841,15 @@ function updateControls() {
       const bomb2 = tankTypes[me.tankType].bomb2;
       bomb2Label.textContent = bomb2 ? bomb2.name : 'BOMB 2';
     }
+
+    // REPAIR 버튼 상태
+    const btnRepair = document.getElementById('btnRepair');
+    const repairCount = document.getElementById('repairCount');
+    const kits = me.repairKits ?? 0;
+    if (repairCount) repairCount.textContent = kits;
+    if (btnRepair) {
+      btnRepair.disabled = !isMyTurn || !!projectile || kits <= 0;
+    }
     if (currentWeapon === 'laser_guided' && laserCount <= 0) currentWeapon = 'normal';
     weaponButtons.forEach(btn => {
       const w = btn.dataset.weapon;
@@ -883,6 +892,17 @@ function moveTankByDistance(direction) {
   const optimistic = Math.max(0, (me.moveBudget ?? 0) - actual);
   if (moveBudgetValue) moveBudgetValue.textContent = optimistic;
   socket.emit('moveBy', { direction, distance: dist });
+}
+
+function useRepair() {
+  if (!state || state.currentTurn !== myId) return;
+  const me = state.players[myId];
+  if (!me) return;
+  if ((me.repairKits ?? 0) <= 0) {
+    showToast('⚠️ 수리킷 없음');
+    return;
+  }
+  socket.emit('repair');
 }
 
 function toggleDoubleShot() {
@@ -1983,40 +2003,38 @@ function drawGuidedTrajectory() {
   ctx.beginPath();
   ctx.moveTo(x, y);
 
-  let impactPoint = null;
+  // 먼저 전체 궤적 길이 추정 (지형 충돌 또는 max iter까지)
+  let fullPath = [];
+  let tx = x, ty = y, tvx = vx, tvy = vy;
   for (let i = 0; i < 500; i++) {
-    const speed = Math.sqrt(vx * vx + vy * vy);
+    const speed = Math.sqrt(tvx * tvx + tvy * tvy);
     const dragMag = 0.0012 * speed;
-    vx += wind * 0.32 + (-vx * dragMag);
-    vy += 0.15 + (-vy * dragMag);
-    x += vx;
-    y += vy;
-    if (x < -50 || x > canvas.width + 50 || y > canvas.height + 50) break;
+    tvx += wind * 0.32 + (-tvx * dragMag);
+    tvy += 0.15 + (-tvy * dragMag);
+    tx += tvx;
+    ty += tvy;
+    if (tx < -50 || tx > canvas.width + 50 || ty > canvas.height + 50) break;
+    fullPath.push({ x: tx, y: ty });
     if (state.terrain) {
-      const idx = Math.floor(x / 2);
-      if (idx >= 0 && idx < state.terrain.length && y >= state.terrain[idx]) {
-        impactPoint = { x, y: state.terrain[idx] };
-        ctx.lineTo(impactPoint.x, impactPoint.y);
-        break;
-      }
+      const idx = Math.floor(tx / 2);
+      if (idx >= 0 && idx < state.terrain.length && ty >= state.terrain[idx]) break;
     }
-    if (i % 2 === 0) ctx.lineTo(x, y);
+  }
+  // 앞의 30%만 그리기 (유도라 끝점 노출 안 함)
+  const showCount = Math.max(8, Math.floor(fullPath.length * 0.3));
+  for (let i = 0; i < showCount && i < fullPath.length; i += 2) {
+    ctx.lineTo(fullPath[i].x, fullPath[i].y);
   }
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 예상 명중 지점 표식
-  if (impactPoint) {
-    const pulse = 0.6 + Math.sin(Date.now() / 200) * 0.3;
-    ctx.strokeStyle = `rgba(255, 217, 61, ${pulse})`;
-    ctx.lineWidth = 2;
+  // 가이드 끝점에 작은 페이드 표식 (impact 위치 노출 X)
+  if (fullPath.length > 0 && showCount < fullPath.length) {
+    const endPt = fullPath[Math.min(showCount - 1, fullPath.length - 1)];
+    ctx.fillStyle = 'rgba(124, 196, 255, 0.45)';
     ctx.beginPath();
-    ctx.arc(impactPoint.x, impactPoint.y, 10, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(impactPoint.x - 13, impactPoint.y); ctx.lineTo(impactPoint.x + 13, impactPoint.y);
-    ctx.moveTo(impactPoint.x, impactPoint.y - 13); ctx.lineTo(impactPoint.x, impactPoint.y + 13);
-    ctx.stroke();
+    ctx.arc(endPt.x, endPt.y, 4, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -2320,6 +2338,31 @@ function drawProjectile() {
     ctx.beginPath(); ctx.arc(projectile.x, projectile.y, projRadius + 3, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
+
+  // M1A2 멀티탄 — 옆/뒤로 동반 펠릿 3개 추가 (총 4발이 분산되어 날아가는 듯한 시각)
+  if (isRedBean && tt === 'M1A2' && projectile.vx != null) {
+    const ang = Math.atan2(projectile.vy, projectile.vx);
+    const perpX = -Math.sin(ang);
+    const perpY = Math.cos(ang);
+    const ghosts = [
+      { off: -1, behind: 0.0 },
+      { off:  1, behind: 0.0 },
+      { off: -2, behind: 0.8 },
+      { off:  2, behind: 0.8 },
+    ];
+    ghosts.forEach(g => {
+      const gx = projectile.x + perpX * g.off * 4 - projectile.vx * g.behind;
+      const gy = projectile.y + perpY * g.off * 4 - projectile.vy * g.behind;
+      ctx.save();
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#8B6F47';
+      ctx.beginPath();
+      ctx.arc(gx, gy, projRadius * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
 
   // T-90 우라늄탄 — 방사능 꼬리 (녹색 점 2개)
   if (isRedBean && tt === 'T90' && projectile.vx != null) {

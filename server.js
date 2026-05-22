@@ -451,6 +451,7 @@ function resetToLobby(room) {
     p.doubleShots = STARTING_DOUBLE_SHOTS;
     p.doubleShotPending = false;
     p.laserShots = 0;
+    p.repairKits = 1;
     p.moveBudget = tankDef.move;
   });
 
@@ -829,6 +830,23 @@ function startFire(room, player, weaponType, useDouble) {
     }
   }
 
+  // 멀티탄(미국 bomb2): 메인 발사 후 추가 발사 큐
+  let multiQueueRemaining = 0;
+  let multiAngleOffsets = [];
+  if (actualWeapon === 'redbean') {
+    const tankDef = getTankDef(player.tankType);
+    if (tankDef.bomb2 && tankDef.bomb2.kind === 'multi' && tankDef.bomb2.multi > 1) {
+      multiQueueRemaining = tankDef.bomb2.multi - 1;
+      // 각도 약간씩 분산 (-6, +6, -3, +3 등)
+      const spreadDeg = 7;
+      for (let i = 1; i <= multiQueueRemaining; i++) {
+        const s = i % 2 === 0 ? 1 : -1;
+        const step = Math.ceil(i / 2);
+        multiAngleOffsets.push(s * step * spreadDeg);
+      }
+    }
+  }
+
   const proj = simulateProjectile(player.x, player.y, player.angle, player.power, player);
   proj.type = actualWeapon;
   proj.shooterId = player.id;
@@ -839,6 +857,7 @@ function startFire(room, player, weaponType, useDouble) {
       proj.airBurstDist = tankDef.bomb2.airBurst;
     }
   }
+  proj.isMultiPrimary = multiQueueRemaining > 0;
   room.projectile = proj;
 
   if (room.turnTimer) {
@@ -965,8 +984,14 @@ function startFire(room, player, weaponType, useDouble) {
     const terrainY = getTerrainY(room.terrain, px);
 
     // ZTZ-99 샷건탄 — 지형 도달 전에 공중 폭발 (airBurst px 위에서)
+    // 발사자에서 어느 정도 떨어진 후에만 활성 (자기 머리 위 즉발 방지)
     if (p.type === 'redbean' && p.airBurstDist) {
-      if (terrainY - py < p.airBurstDist) {
+      const shooterPlayer = room.players[p.shooterId];
+      const distFromShooter = shooterPlayer
+        ? Math.sqrt((px - shooterPlayer.x) ** 2 + (py - shooterPlayer.y) ** 2)
+        : 999;
+      const armed = distFromShooter > p.airBurstDist * 2;
+      if (armed && terrainY - py < p.airBurstDist) {
         room.projectile = null;
         clearInterval(simInterval);
         detonate(px, py);
@@ -982,19 +1007,26 @@ function startFire(room, player, weaponType, useDouble) {
     }
 
     // ZTZ-99 샷건탄: 탱크 접근 시 공중 폭발 (탱크 위 airBurst px에서 터짐)
+    // 발사자에서 충분히 떨어진 후만 활성
     if (p.type === 'redbean' && p.airBurstDist) {
-      for (const id of Object.keys(room.players)) {
-        const target = room.players[id];
-        if (!target.alive) continue;
-        if (target.id === p.shooterId) continue;
-        const dx = target.x - px;
-        const dy = target.y - py;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < p.airBurstDist) {
-          room.projectile = null;
-          clearInterval(simInterval);
-          detonate(px, py);
-          return;
+      const shooterPlayer = room.players[p.shooterId];
+      const distFromShooter = shooterPlayer
+        ? Math.sqrt((px - shooterPlayer.x) ** 2 + (py - shooterPlayer.y) ** 2)
+        : 999;
+      if (distFromShooter > p.airBurstDist * 2) {
+        for (const id of Object.keys(room.players)) {
+          const target = room.players[id];
+          if (!target.alive) continue;
+          if (target.id === p.shooterId) continue;
+          const dx = target.x - px;
+          const dy = target.y - py;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < p.airBurstDist) {
+            room.projectile = null;
+            clearInterval(simInterval);
+            detonate(px, py);
+            return;
+          }
         }
       }
     }
@@ -1183,6 +1215,7 @@ io.on('connection', (socket) => {
     doubleShots: STARTING_DOUBLE_SHOTS,
     doubleShotPending: false,
     laserShots: 0,
+    repairKits: 1,
     kills: 0,
     damageDealt: 0,
   };
@@ -1226,6 +1259,7 @@ io.on('connection', (socket) => {
         r.players[id].doubleShots = STARTING_DOUBLE_SHOTS;
         r.players[id].doubleShotPending = false;
         r.players[id].laserShots = 0;
+        r.players[id].repairKits = 1;
         r.players[id].moveBudget = tankDef.move;
         r.players[id].kills = 0;
         r.players[id].damageDealt = 0;
@@ -1327,6 +1361,23 @@ io.on('connection', (socket) => {
       r.players[socket.id].power = Math.max(5, Math.min(150, v));
       broadcastState(r);
     }
+  });
+
+  // 수리 (1회, HP 20% 회복)
+  socket.on('repair', () => {
+    const r = rooms[socket.data.roomId];
+    if (!r) return;
+    if (r.phase !== 'playing') return;
+    if (r.currentTurn !== socket.id) return;
+    if (r.projectile || r.airstrike) return;
+    const player = r.players[socket.id];
+    if (!player || !player.alive) return;
+    if ((player.repairKits || 0) <= 0) return;
+    const heal = Math.round((player.maxHp || 100) * 0.2);
+    player.hp = Math.min(player.maxHp || 100, player.hp + heal);
+    player.repairKits = (player.repairKits || 0) - 1;
+    systemChat(r, `🔧 ${player.name} 수리 +${heal} HP`);
+    broadcastState(r);
   });
 
   socket.on('fire', (arg) => {
