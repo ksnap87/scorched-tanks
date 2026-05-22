@@ -554,8 +554,17 @@ function placeTanks(room) {
   }
 
   playerIds.forEach((id, i) => {
-    const jitter = (Math.random() - 0.5) * Math.min(spacing * 0.5, 80);
-    const x = Math.max(margin, Math.min(CANVAS_WIDTH - margin, slots[i] + jitter));
+    let trialX = Math.max(margin, Math.min(CANVAS_WIDTH - margin, slots[i] + (Math.random() - 0.5) * Math.min(spacing * 0.5, 80)));
+    // 가파른 언덕 회피 — 좌우 30px 기울기가 작은 곳으로 이동
+    for (let tryN = 0; tryN < 10; tryN++) {
+      const yL = getTerrainY(room.terrain, Math.max(0, trialX - 18));
+      const yR = getTerrainY(room.terrain, Math.min(CANVAS_WIDTH - 1, trialX + 18));
+      const tiltAbs = Math.abs(Math.atan2(yR - yL, 36));
+      if (tiltAbs < 0.45) break; // 약 26도 미만이면 OK
+      trialX += (Math.random() - 0.5) * 60;
+      trialX = Math.max(margin, Math.min(CANVAS_WIDTH - margin, trialX));
+    }
+    const x = trialX;
     const y = getTerrainY(room.terrain, x);
     const tankDef = getTankDef(room.players[id].tankType);
     room.players[id].x = x;
@@ -566,6 +575,8 @@ function placeTanks(room) {
     room.players[id].angle = 45;
     room.players[id].power = 50;
     room.players[id].doubleShotPending = false;
+    room.players[id].siegeMode = 'idle';
+    room.players[id].siegeChangedAt = 0;
   });
 }
 
@@ -922,6 +933,12 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     const terrainY = getTerrainY(room.terrain, player.x);
     const newY = terrainY - TANK_HEIGHT / 2;
 
+    // 자기 폭탄(bomb2=redbean) 시 자기 fall damage 면역 (우라늄/멀티탄/빨콩 등 자해 방지)
+    if (shooter && player.id === shooter.id && weaponType === 'redbean') {
+      player.y = newY;
+      return;
+    }
+
     const fallDistance = newY - oldY;
 
     if (fallDistance > 5) {
@@ -951,7 +968,10 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   // bomb2 폭발 후 DOT 지역 생성 (우라늄 = 방사능, 화염탄 = 불)
   if (!isSubExplosion && weaponType === 'redbean' && shooter) {
     const tankDef = getTankDef(shooter.tankType);
-    if (tankDef.bomb2 && tankDef.bomb2.kind === 'uranium') {
+    // 발사자 본인 위치와 너무 가까우면 zone 생성 X (자기 발치 폭발 안전)
+    const distToShooter = Math.sqrt((x - shooter.x) ** 2 + (y - shooter.y) ** 2);
+    const tooClose = distToShooter < 45;
+    if (tankDef.bomb2 && tankDef.bomb2.kind === 'uranium' && !tooClose) {
       if (!room.radiationZones) room.radiationZones = [];
       room.radiationZones.push({
         id: room.nextZoneId++,
@@ -963,7 +983,7 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
         shooterId: shooter.id,
         dotKind: 'uranium',
       });
-    } else if (tankDef.bomb2 && tankDef.bomb2.fire) {
+    } else if (tankDef.bomb2 && tankDef.bomb2.fire && !tooClose) {
       // 화염탄 (중국 ZTZ-99) — 폭발 후 불 지역 생성
       if (!room.radiationZones) room.radiationZones = [];
       const fireY = getTerrainY(room.terrain, x);  // 불은 지형 위에
@@ -1541,6 +1561,24 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 본인 팀 선택 (대기방에서만, 최대 5명 제한)
+  socket.on('setTeam', (team) => {
+    const r = rooms[socket.data.roomId];
+    if (!r) return;
+    if (!r.teamMode) return;
+    if (r.phase !== 'lobby') return;
+    if (team !== 'A' && team !== 'B') return;
+    const player = r.players[socket.id];
+    if (!player) return;
+    const teamCount = Object.values(r.players).filter(p => p.team === team).length;
+    if (teamCount >= 5 && player.team !== team) {
+      io.to(socket.id).emit('teamFull', { team });
+      return;
+    }
+    player.team = team;
+    broadcastState(r);
+  });
+
   // 호스트가 팀전 모드 토글 (대기방에서만)
   socket.on('setTeamMode', (enabled) => {
     const r = rooms[socket.data.roomId];
@@ -1599,9 +1637,13 @@ io.on('connection', (socket) => {
         r.players[id].doubleShotPending = false;
         r.players[id].laserShots = 0;
         r.players[id].repairKits = 0;
+        r.players[id].nukeShots = 0;
         r.players[id].moveBudget = tankDef.move;
         r.players[id].kills = 0;
         r.players[id].damageDealt = 0;
+        r.players[id].siegeMode = 'idle';
+        r.players[id].siegeChangedAt = 0;
+        r.players[id].cooldownUntil = 0;
       });
       startNewRound(r);
     }

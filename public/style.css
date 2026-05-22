@@ -1086,6 +1086,50 @@ canvas {
   50% { transform: scale(1.04); }
 }
 
+/* Team zones (lobby team mode) */
+.team-zones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 0.5rem;
+}
+.team-zone {
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.team-zone.team-a { background: rgba(255, 71, 87, 0.10); border: 1px dashed rgba(255, 71, 87, 0.45); }
+.team-zone.team-b { background: rgba(30, 144, 255, 0.10); border: 1px dashed rgba(30, 144, 255, 0.45); }
+.team-zone:hover { transform: translateY(-1px); }
+.team-zone.team-a:hover { background: rgba(255, 71, 87, 0.20); border-color: #FF4757; }
+.team-zone.team-b:hover { background: rgba(30, 144, 255, 0.20); border-color: #1E90FF; }
+.team-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ddd;
+  letter-spacing: 2px;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.team-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.team-unassigned {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.78rem;
+  color: #FFD93D;
+  text-align: center;
+  padding: 6px;
+  background: rgba(255, 217, 61, 0.08);
+  border: 1px dashed rgba(255, 217, 61, 0.4);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
 /* Team mode toggle (lobby) */
 .team-mode-toggle {
   margin: 0.6rem 0 1rem;

@@ -658,31 +658,63 @@ function spawnPickupBurst() {
 function updateLobby() {
   if (!state) return;
   const players = Object.values(state.players);
+  const teamMode = !!state.teamMode;
+  // 호스트 토글 동기화
+  const teamCb = document.getElementById('teamModeToggle');
+  if (teamCb) teamCb.checked = teamMode;
 
-  let html = '';
-  for (let i = 0; i < 10; i++) {
-    if (i < players.length) {
-      const p = players[i];
+  if (teamMode) {
+    // 팀별 슬롯 (A 5명 / B 5명)
+    const teamA = players.filter(p => p.team === 'A');
+    const teamB = players.filter(p => p.team === 'B');
+    const noTeam = players.filter(p => !p.team);
+    const renderSlot = (p) => {
       const isMe = p.id === myId;
       const isHost = p.id === state.host;
       const tankDef = (tankTypes && p.tankType && tankTypes[p.tankType]) || null;
       const flag = tankDef ? tankDef.flag : '⬟';
-      const tankShort = tankDef ? tankDef.id : '';
-      html += `<div class="player-slot filled" style="border-color: ${p.color}40;">
+      return `<div class="player-slot filled team-slot" style="border-color: ${p.color}40;">
         <div class="slot-icon" style="color: ${p.color};">${flag}</div>
-        <div class="slot-name" style="color: ${p.color};">
-          ${isHost ? '👑 ' : ''}${p.name}${isMe ? ' (YOU)' : ''}
+        <div class="slot-name" style="color: ${p.color};">${isHost ? '👑 ' : ''}${p.name}${isMe ? ' (YOU)' : ''}</div>
+      </div>`;
+    };
+    const emptySlot = () => `<div class="player-slot"><div class="slot-icon">·</div><div class="slot-name">EMPTY</div></div>`;
+    const slotsA = teamA.map(renderSlot).join('') + Array.from({length: Math.max(0, 5 - teamA.length)}, emptySlot).join('');
+    const slotsB = teamB.map(renderSlot).join('') + Array.from({length: Math.max(0, 5 - teamB.length)}, emptySlot).join('');
+    let html = `
+      <div class="team-zones">
+        <div class="team-zone team-a" onclick="joinTeam('A')">
+          <div class="team-label">🅰️ TEAM A (${teamA.length}/5)</div>
+          <div class="team-slot-grid">${slotsA}</div>
         </div>
-        <div class="slot-tank">${tankShort}</div>
-      </div>`;
-    } else {
-      html += `<div class="player-slot">
-        <div class="slot-icon">·</div>
-        <div class="slot-name">EMPTY</div>
-      </div>`;
+        <div class="team-zone team-b" onclick="joinTeam('B')">
+          <div class="team-label">🅱️ TEAM B (${teamB.length}/5)</div>
+          <div class="team-slot-grid">${slotsB}</div>
+        </div>
+      </div>
+      ${noTeam.length > 0 ? `<div class="team-unassigned">미배정: ${noTeam.map(p => p.name).join(', ')} — 위 팀 영역 클릭으로 이동</div>` : ''}`;
+    playerSlots.innerHTML = html;
+  } else {
+    let html = '';
+    for (let i = 0; i < 10; i++) {
+      if (i < players.length) {
+        const p = players[i];
+        const isMe = p.id === myId;
+        const isHost = p.id === state.host;
+        const tankDef = (tankTypes && p.tankType && tankTypes[p.tankType]) || null;
+        const flag = tankDef ? tankDef.flag : '⬟';
+        const tankShort = tankDef ? tankDef.id : '';
+        html += `<div class="player-slot filled" style="border-color: ${p.color}40;">
+          <div class="slot-icon" style="color: ${p.color};">${flag}</div>
+          <div class="slot-name" style="color: ${p.color};">${isHost ? '👑 ' : ''}${p.name}${isMe ? ' (YOU)' : ''}</div>
+          <div class="slot-tank">${tankShort}</div>
+        </div>`;
+      } else {
+        html += `<div class="player-slot"><div class="slot-icon">·</div><div class="slot-name">EMPTY</div></div>`;
+      }
     }
+    playerSlots.innerHTML = html;
   }
-  playerSlots.innerHTML = html;
 
   const isMyHost = state.host === myId;
   btnStart.disabled = players.length < 1 || !isMyHost;
@@ -952,6 +984,14 @@ function onTeamModeToggle() {
   if (!cb) return;
   socket.emit('setTeamMode', cb.checked);
 }
+
+function joinTeam(team) {
+  socket.emit('setTeam', team);
+}
+
+socket.on('teamFull', (data) => {
+  showToast(`⚠️ Team ${data.team} 이미 5명 (정원)`);
+});
 
 function toggleSiege() {
   if (!state) return;
@@ -2475,19 +2515,41 @@ function drawGuidedTrajectory() {
 function drawTankHull(player) {
   const x = player.x, y = player.y, color = player.color;
   const tt = player.tankType;
-  // === 시즈모드 발판 (양쪽 고정용) ===
+  // === 시즈모드 발판 (선명한 금속, 양쪽 고정) ===
   if (player.siegeMode === 'sieged' || player.siegeMode === 'transforming' || player.siegeMode === 'untransforming') {
     const phase = player.siegeMode === 'sieged' ? 1
                 : player.siegeMode === 'transforming' ? Math.min(1, (Date.now() - (player.siegeChangedAt || 0)) / 4000)
                 : Math.max(0, 1 - (Date.now() - (player.siegeChangedAt || 0)) / 4000);
-    const legW = 18 * phase;
+    const legW = 22 * phase;
+    // 다리 본체 (그라데이션 + 외곽선)
+    ctx.save();
+    ctx.shadowColor = '#FFD93D';
+    ctx.shadowBlur = phase > 0.5 ? 10 : 0;
+    const grad = ctx.createLinearGradient(x, y + 4, x, y + 12);
+    grad.addColorStop(0, '#5a6878');
+    grad.addColorStop(1, '#2a2e38');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 18 - legW, y + 4, legW, 7);
+    ctx.fillRect(x + 18,        y + 4, legW, 7);
+    // 다리 외곽선
+    ctx.strokeStyle = '#1a1d24';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 18 - legW, y + 4, legW, 7);
+    ctx.strokeRect(x + 18,        y + 4, legW, 7);
+    // 다리 안 디테일 (리벳)
+    ctx.fillStyle = '#FFD93D';
+    for (let i = 4; i < legW; i += 6) {
+      ctx.fillRect(x - 18 - legW + i, y + 6, 2, 2);
+      ctx.fillRect(x + 18 + i, y + 6, 2, 2);
+    }
+    // 발판 끝 받침 (크고 진하게)
+    ctx.fillStyle = '#1a1d24';
+    ctx.fillRect(x - 18 - legW - 2, y + 10, 4, 6);
+    ctx.fillRect(x + 18 + legW - 2, y + 10, 4, 6);
     ctx.fillStyle = '#3a3a44';
-    ctx.fillRect(x - 18 - legW, y + 5, legW, 5);
-    ctx.fillRect(x + 18,        y + 5, legW, 5);
-    // 발판 끝 받침
-    ctx.fillStyle = '#5a5a68';
-    ctx.fillRect(x - 18 - legW - 1, y + 8, 3, 4);
-    ctx.fillRect(x + 18 + legW - 2, y + 8, 3, 4);
+    ctx.fillRect(x - 18 - legW - 4, y + 14, 8, 3);
+    ctx.fillRect(x + 18 + legW - 4, y + 14, 8, 3);
+    ctx.restore();
   }
   // 측면 펜더 (모두 공통)
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -2666,10 +2728,29 @@ function drawTanks() {
     ctx.ellipse(x, y + 10, 18, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // 지형 기울기에 따라 탱크 회전 (시즈모드일 땐 회전 X — 발판으로 고정)
+    let tiltAngle = 0;
+    if (player.siegeMode !== 'sieged' && state.terrain) {
+      const xL = Math.max(0, x - 16);
+      const xR = Math.min(canvas.width - 1, x + 16);
+      const yL = state.terrain[Math.floor(xL / 2)] || y;
+      const yR = state.terrain[Math.floor(xR / 2)] || y;
+      tiltAngle = Math.atan2(yR - yL, 32);
+      // 너무 큰 회전 cap (보기 어색)
+      tiltAngle = Math.max(-0.7, Math.min(0.7, tiltAngle));
+    }
+
+    ctx.save();
+    if (Math.abs(tiltAngle) > 0.02) {
+      ctx.translate(x, y);
+      ctx.rotate(tiltAngle);
+      ctx.translate(-x, -y);
+    }
     // 탱크별 본체 + 포탑 실루엣
     drawTankHull(player);
     // 탱크별 포신 (각도 회전, 다른 길이/굵기)
     drawTankBarrel(player, isMyTurn);
+    ctx.restore();
 
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     for (let i = -12; i <= 12; i += 6) {
