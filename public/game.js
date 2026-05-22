@@ -2532,20 +2532,33 @@ function drawWeatherParticles() {
       ctx.fill();
     }
   });
-  // 모래바람 시야 좁힘 (본인 주변만 보임)
+  // 모래바람 시야 좁힘 — 시야 밖은 확실하게 안 보이게 (거의 완전 차단)
   if (state.weather.kind === 'sandstorm') {
     const me = state.players ? state.players[myId] : null;
+    ctx.save();
     if (me && me.alive) {
-      const grad = ctx.createRadialGradient(me.x, me.y - 10, 60, me.x, me.y - 10, 380);
+      // 시야 안: 본인 주변 작은 원만 선명, 바깥은 완전히 가려짐
+      const visionInner = 60;    // 완전 선명
+      const visionEdge = 240;    // 이 거리 바깥은 완전 차단
+      const grad = ctx.createRadialGradient(me.x, me.y - 10, visionInner, me.x, me.y - 10, visionEdge);
       grad.addColorStop(0, 'rgba(180, 130, 60, 0)');
-      grad.addColorStop(0.6, 'rgba(180, 130, 60, 0.4)');
-      grad.addColorStop(1, 'rgba(140, 90, 30, 0.78)');
+      grad.addColorStop(0.4, 'rgba(170, 120, 55, 0.35)');
+      grad.addColorStop(0.75, 'rgba(150, 100, 45, 0.85)');
+      grad.addColorStop(1, 'rgba(120, 80, 30, 1)');   // 완전 불투명
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // 시야 원 가장자리에 부드러운 페더 (시야경계 표시)
+      ctx.strokeStyle = 'rgba(80, 50, 20, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(me.x, me.y - 10, visionEdge - 30, 0, Math.PI * 2);
+      ctx.stroke();
     } else {
-      ctx.fillStyle = 'rgba(140, 90, 30, 0.45)';
+      // 죽은 후/관전: 화면 거의 다 가림 (간신히 윤곽만)
+      ctx.fillStyle = 'rgba(140, 90, 30, 0.92)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+    ctx.restore();
   }
   // 자연재해 라벨
   const wName = { rain: '🌧 폭우', snow: '❄️ 폭설', typhoon: '🌪 태풍', sandstorm: '🟡 모래바람' }[state.weather.kind];
