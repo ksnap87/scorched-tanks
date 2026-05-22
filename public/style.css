@@ -51,7 +51,7 @@ body {
   align-items: stretch;
 }
 
-/* === Lobby v2 — 메인 + 우측 채팅. 메인은 세로 stack. === */
+/* === Lobby v2 (legacy) — 메인 + 우측 채팅. 메인은 세로 stack. === */
 .lobby-content.lobby-v2 {
   grid-template-columns: 1fr 320px;
   align-items: stretch;
@@ -62,26 +62,74 @@ body {
   gap: 14px;
   text-align: left;
 }
-/* 카드 공통 스타일 */
+
+/* === Lobby v3 — 2x2 grid: (top-left header+players+hints, top-right chat) / (bottom: 전체 폭 탱크) === */
+.lobby-content.lobby-v3.lobby-v2,
+.lobby-content.lobby-v3 {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: auto auto;
+  gap: 16px;
+  align-items: start;
+}
+.lobby-v3 .lobby-top-left {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+.lobby-v3 .lobby-chat {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  /* 채팅창 높이를 컨텐츠에 맞춰 — 메인 좌측 컬럼만큼만 */
+  max-height: 100%;
+}
+.lobby-v3 .lobby-tank-row {
+  grid-column: 1 / -1;       /* 두 컬럼 모두 span — 채팅 아래 공간까지 */
+  grid-row: 2;
+}
+@media (max-width: 980px) {
+  .lobby-content.lobby-v3 {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .lobby-v3 .lobby-chat,
+  .lobby-v3 .lobby-tank-row { grid-column: 1; }
+  .lobby-v3 .lobby-chat { grid-row: 2; }
+  .lobby-v3 .lobby-tank-row { grid-row: 3; }
+}
+
+/* 카드 공통 스타일 (v2 + v3) */
 .lobby-v2 .name-input-group,
 .lobby-v2 .player-list,
 .lobby-v2 .key-hints-bar,
-.lobby-v2 .tank-select {
+.lobby-v2 .tank-select,
+.lobby-v3 .name-input-group,
+.lobby-v3 .player-list,
+.lobby-v3 .key-hints-bar,
+.lobby-v3 .tank-select {
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
   padding: 12px 16px;
 }
 /* 상단: 이름 / 팀전 토글 / START 를 한 줄에 */
-.lobby-v2 .name-input-group {
+.lobby-v2 .name-input-group,
+.lobby-v3 .name-input-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
-.lobby-v2 .name-input-group input {
-  flex: 1 1 220px;
-  min-width: 180px;
+.lobby-v2 .name-input-group input,
+.lobby-v3 .name-input-group input {
+  flex: 0 1 160px;     /* 이름 input 짧게 — 한 줄에 팀전 토글까지 들어가게 */
+  max-width: 200px;
+  min-width: 130px;
 }
 .lobby-v2 .team-toggle-inline {
   display: inline-flex;

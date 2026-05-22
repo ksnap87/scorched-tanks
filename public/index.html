@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Scorched Earth - 최대 10인 멀티플레이어 탱크 대전 게임">
   <title>SCORCHED EARTH | Tank Battle</title>
-  <link rel="stylesheet" href="style.css?v=43">
+  <link rel="stylesheet" href="style.css?v=44">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -45,9 +45,9 @@
         <button class="btn-room" id="btnNewRoom" onclick="createNewRoom()">+ NEW ROOM</button>
       </div>
 
-      <div class="lobby-content lobby-v2">
-        <!-- 메인: 플레이어 / 시작 / 키보드 / 탱크 6장 가로 1열 -->
-        <div class="lobby-main">
+      <div class="lobby-content lobby-v3 lobby-v2">
+        <!-- 상단 좌: 헤더(이름/팀전/시작) + PLAYERS + 키보드 -->
+        <div class="lobby-top-left">
           <div class="name-input-group">
             <input type="text" id="nameInput" placeholder="Enter your name..." maxlength="12" autocomplete="off">
             <button class="btn" style="padding: 12px 20px; font-size: 0.8rem; background: #1E90FF; color: #fff; border-radius: 10px;" onclick="setName()">SET</button>
@@ -77,14 +77,9 @@
             <span><kbd>1</kbd>Normal <kbd>2</kbd>Bomb2 <kbd>3</kbd>Ult <kbd>4</kbd>Nuke</span>
             <span><kbd>ENTER</kbd> Chat</span>
           </div>
-
-          <div class="tank-select tank-select-row">
-            <h3>SELECT TANK</h3>
-            <div class="tank-grid tank-grid-row" id="tankGrid"></div>
-          </div>
         </div>
 
-        <!-- 우: 채팅 -->
+        <!-- 상단 우: 채팅 (상단 row 만 차지) -->
         <div class="lobby-chat">
           <div class="lc-header">💬 CHAT</div>
           <div class="chat-messages" id="lobbyChatMessages"></div>
@@ -92,6 +87,12 @@
             <input type="text" id="lobbyChatInput" placeholder="메시지 입력..." maxlength="200" autocomplete="off">
             <button class="btn-chat-send" onclick="sendChatFromLobby()">SEND</button>
           </div>
+        </div>
+
+        <!-- 하단 전체 폭: SELECT TANK 6장 (채팅 아래 공간까지 확장) -->
+        <div class="tank-select tank-select-row lobby-tank-row">
+          <h3>SELECT TANK</h3>
+          <div class="tank-grid tank-grid-row" id="tankGrid"></div>
         </div>
       </div>
     </div>
@@ -256,6 +257,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=43"></script>
+  <script src="game.js?v=44"></script>
 </body>
 </html>
