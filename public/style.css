@@ -93,9 +93,34 @@ body {
   border-radius: 8px;
   font-size: 0.78rem;
   font-weight: 600;
+  color: #e0e0e0;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+}
+.lobby-v2 .team-toggle-inline span { color: #e0e0e0; }
+.lobby-v2 .team-toggle-inline input:checked + span,
+.lobby-v2 .team-toggle-inline:has(input:checked) { color: #FFD93D; border-color: rgba(255, 217, 61, 0.5); }
+/* 팀전 설명 라인 */
+.lobby-v2 .team-info {
+  flex: 1 1 100%;
+  margin-top: 2px;
+  font-size: 0.7rem;
+  color: #999;
+  line-height: 1.4;
+}
+.lobby-v2 .team-info b { color: #FFD93D; font-weight: 600; }
+
+/* 팀존이 10-col player-slots 안에 들어가도 전체 폭 차지 */
+.lobby-v2 .player-slots:has(.team-zones) {
+  display: block;
+}
+.lobby-v2 .player-slots .team-zones,
+.lobby-v2 .player-slots .team-unassigned {
+  width: 100%;
+}
+.lobby-v2 .team-slot-grid {
+  grid-template-columns: repeat(5, 1fr);
 }
 .lobby-v2 .team-toggle-inline input {
   margin: 0;
