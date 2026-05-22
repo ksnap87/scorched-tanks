@@ -198,7 +198,7 @@ socket.on('gameState', (data) => {
     updateLobby();
   } else if (state.phase === 'playing') {
     lobby.style.display = 'none';
-    gameContainer.style.display = 'block';
+    gameContainer.style.display = 'flex';
     scoreboardEl.style.display = 'none';
     updateHUD();
     updateControls();
@@ -792,7 +792,7 @@ function showScoreboard() {
 
   // 카운트다운 안내 (gameoverInfo가 누락된 경우 안전망)
   if (!gameoverEndsAt) {
-    gameoverEndsAt = Date.now() + 8000;
+    gameoverEndsAt = Date.now() + 5000;
     startGameoverCountdown();
   } else if (!gameoverCountdownTimer) {
     startGameoverCountdown();

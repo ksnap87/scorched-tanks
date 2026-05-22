@@ -67,6 +67,7 @@
 
   <!-- GAME -->
   <div id="gameContainer">
+   <div class="canvas-wrap">
     <canvas id="gameCanvas" width="1400" height="700"></canvas>
 
     <!-- HUD -->
@@ -132,20 +133,6 @@
       <button class="btn-fire" id="btnFire" onclick="fire()">🔥 FIRE</button>
     </div>
 
-    <!-- In-game Chat (collapsible) -->
-    <div class="game-chat" id="gameChat">
-      <div class="gc-header" onclick="toggleGameChat()">
-        <span>💬 CHAT</span>
-        <span class="gc-toggle-icon" id="gcToggleIcon">▼</span>
-      </div>
-      <div class="game-chat-body" id="gameChatBody">
-        <div class="chat-messages" id="gameChatMessages"></div>
-        <div class="chat-input-row">
-          <input type="text" id="gameChatInput" placeholder="Enter로 전송..." maxlength="200" autocomplete="off">
-        </div>
-      </div>
-    </div>
-
     <!-- Scoreboard Overlay -->
     <div id="scoreboard">
       <div class="scoreboard-panel">
@@ -158,9 +145,24 @@
         <div class="gameover-footer">
           <div class="lobby-countdown">
             <span class="lc-label">대기방으로 이동까지</span>
-            <span class="lc-num" id="lobbyCountdown">8</span>
+            <span class="lc-num" id="lobbyCountdown">5</span>
             <span class="lc-unit">초</span>
           </div>
+        </div>
+      </div>
+    </div>
+   </div>
+
+    <!-- In-game Chat (캔버스 아래 가로띠) -->
+    <div class="game-chat" id="gameChat">
+      <div class="gc-header" onclick="toggleGameChat()">
+        <span>💬 CHAT</span>
+        <span class="gc-toggle-icon" id="gcToggleIcon">▼</span>
+      </div>
+      <div class="game-chat-body" id="gameChatBody">
+        <div class="chat-messages" id="gameChatMessages"></div>
+        <div class="chat-input-row">
+          <input type="text" id="gameChatInput" placeholder="Enter로 전송..." maxlength="200" autocomplete="off">
         </div>
       </div>
     </div>

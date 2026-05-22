@@ -337,10 +337,10 @@ function nextTurnInner(room) {
       if (room.itemSpawnTimer) { clearTimeout(room.itemSpawnTimer); room.itemSpawnTimer = null; }
 
       if (room.lobbyReturnTimer) clearTimeout(room.lobbyReturnTimer);
-      // 게임 종료 → 8초 동안 결과 보여주고 대기방으로 (새 게임 자동 시작 X)
-      room.gameoverEndsAt = Date.now() + 8000;
+      // 게임 종료 → 5초 동안 결과 보여주고 자동으로 대기방으로 (새 게임 자동 시작 X)
+      room.gameoverEndsAt = Date.now() + 5000;
       io.to(room.id).emit('gameoverInfo', { endsAt: room.gameoverEndsAt });
-      room.lobbyReturnTimer = setTimeout(() => resetToLobby(room), 8000);
+      room.lobbyReturnTimer = setTimeout(() => resetToLobby(room), 5000);
       return;
     }
 
