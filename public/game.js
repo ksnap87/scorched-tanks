@@ -3270,9 +3270,35 @@ function drawTanks() {
     drawTankBarrel(player, isMyTurn);
     ctx.restore();
 
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    for (let i = -12; i <= 12; i += 6) {
-      ctx.fillRect(x + i - 1, y + 8, 2, 3);
+    // 캐터필러 트랙 (움직이는 듯한 segment) — tilt 좌표계 밖, 본체 아래
+    // 이미 ctx.restore() 후 drawTanks 외부 좌표계라 axis-aligned 로 그려도 OK
+    // 트랙 본체 (어두운 회색 가로 박스)
+    {
+      const trackY = y + 6;
+      const trackW = 34;
+      const trackH = 5;
+      ctx.save();
+      ctx.fillStyle = '#1a1d24';
+      ctx.beginPath();
+      ctx.roundRect(x - trackW / 2, trackY, trackW, trackH, 2);
+      ctx.fill();
+      // 트랙 링크 (시간에 따라 흐름) — 본인 턴이거나 이동 budget 남으면 더 빠르게 흐름
+      const speed = (player.id === myId) ? 60 : 90;
+      const offset = (Date.now() / speed) % 5;
+      ctx.fillStyle = 'rgba(80, 90, 110, 0.85)';
+      for (let i = -4; i < 8; i++) {
+        const lx = x - trackW / 2 + i * 5 + offset;
+        if (lx >= x - trackW / 2 && lx <= x + trackW / 2 - 2) {
+          ctx.fillRect(lx, trackY + 1, 2, 3);
+        }
+      }
+      // 트랙 휠 (양 끝 작은 원)
+      ctx.fillStyle = '#4a505c';
+      ctx.beginPath();
+      ctx.arc(x - trackW / 2 + 2, trackY + trackH / 2, 1.8, 0, Math.PI * 2);
+      ctx.arc(x + trackW / 2 - 2, trackY + trackH / 2, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     // HP 바 — 본인만 표시 (팀전이면 같은 팀도 표시)
