@@ -1498,9 +1498,17 @@ const FLAME_PALETTES = {
   default:{ colors: ['#FF4757', '#FFA502', '#ECCC68', '#FF6B81', '#fff'], count: 40, speedMin: 1, speedMax: 6, gravity: 0.08, sizeMax: 4 },
 };
 
+// 카메라 흔들림 상태
+window._cameraShake = { intensity: 0, until: 0 };
 function spawnExplosion(x, y, radius, flameKind = 'default') {
   const p = FLAME_PALETTES[flameKind] || FLAME_PALETTES.default;
   const count = p.count + Math.floor(radius * 0.5);
+  // 폭발 시 카메라 흔들림 (반경 비례, NUKE/필살기 강하게)
+  const shake = Math.min(12, radius * 0.18 + (flameKind === 'nuke' ? 10 : flameKind === 'ult' ? 5 : 0));
+  if (shake > window._cameraShake.intensity) {
+    window._cameraShake.intensity = shake;
+    window._cameraShake.until = Date.now() + 350 + radius * 2;
+  }
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = p.speedMin + Math.random() * (p.speedMax - p.speedMin);
@@ -1546,6 +1554,21 @@ function render() {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // 카메라 흔들림 (폭발 시 잠시)
+  const cs = window._cameraShake;
+  if (cs && cs.until > Date.now()) {
+    const t = (cs.until - Date.now()) / 600;
+    const amp = cs.intensity * Math.max(0, Math.min(1, t));
+    const sx = (Math.random() - 0.5) * amp * 2;
+    const sy = (Math.random() - 0.5) * amp * 2;
+    ctx.save();
+    ctx.translate(sx, sy);
+    window._cameraShakeActive = true;
+  } else if (cs) {
+    cs.intensity = 0;
+    window._cameraShakeActive = false;
+  }
+
   drawSky();
   drawStars();
   drawClouds();
@@ -1561,6 +1584,9 @@ function render() {
   drawParticles();
   drawTrail();
   drawWeatherParticles();   // 마지막: 시야 효과 + 라벨이 다른 요소 위로
+
+  // 카메라 흔들림 복원
+  if (window._cameraShakeActive) ctx.restore();
 
   updateParticles();
   updateClouds();
@@ -3295,13 +3321,20 @@ function drawTanks() {
       ctx.restore();
     }
 
-    // HP 바 — 본인만 표시 (팀전이면 같은 팀도 표시)
+    // HP 바 — 본인만 표시 (팀전이면 같은 팀도 표시), 부드러운 변화
+    if (!window._displayHp) window._displayHp = {};
+    const targetHp = player.hp || 0;
+    const prevDisplay = window._displayHp[player.id];
+    if (prevDisplay == null) window._displayHp[player.id] = targetHp;
+    else window._displayHp[player.id] += (targetHp - prevDisplay) * 0.12;
+    const displayHp = window._displayHp[player.id];
+
     const me0 = state.players[myId];
     const sameTeam = !!(state.teamMode && me0 && me0.team && player.team === me0.team);
     const showHp = isMe || sameTeam;
     const hpBarY = y - 30;
     if (showHp) {
-      const hpPct = player.hp / (player.maxHp || 100);
+      const hpPct = Math.max(0, displayHp / (player.maxHp || 100));
       const hpBarW = 40;
       const hpBarH = 5;
       const hpBarX = x - hpBarW / 2;
@@ -3317,11 +3350,11 @@ function drawTanks() {
       ctx.roundRect(hpBarX, hpBarY, hpBarW * hpPct, hpBarH, 2);
       ctx.fill();
 
-      // HP 숫자 (바 바로 위 작게)
+      // HP 숫자 (바 바로 위 작게) — 실제 HP 표시 (display 가 아니라 정확 값)
       ctx.font = '600 9px "Orbitron", "Pretendard", system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.fillText(`${Math.max(0, Math.round(player.hp))}/${player.maxHp || 100}`, x, hpBarY - 3);
+      ctx.fillText(`${Math.max(0, Math.round(targetHp))}/${player.maxHp || 100}`, x, hpBarY - 3);
     }
 
     // 이름 (탱크 아래) — 항상 보임
