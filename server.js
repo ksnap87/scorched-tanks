@@ -526,15 +526,15 @@ function generateTerrain(continent = 'KR', mapWidth = CANVAS_WIDTH) {
   const points = [];
   const numPoints = mapWidth > CANVAS_WIDTH * 1.5 ? 14 : 10;
 
-  // 대륙별 기본 (y 중심, 변화량)
-  let yBase = 0.45, yRange = 0.20;
+  // 대륙별 기본 (y 중심, 변화량) — 탱크가 화면 중하단에 위치하도록 yBase 키움
+  let yBase = 0.60, yRange = 0.16;
   switch (continent) {
-    case 'RU': yBase = 0.50; yRange = 0.15; break;
-    case 'CN': yBase = 0.45; yRange = 0.25; break;
-    case 'KR': yBase = 0.45; yRange = 0.20; break;
-    case 'JP': yBase = 0.50; yRange = 0.22; break;
-    case 'US': yBase = 0.42; yRange = 0.22; break;
-    case 'DE': yBase = 0.50; yRange = 0.16; break;
+    case 'RU': yBase = 0.62; yRange = 0.12; break;
+    case 'CN': yBase = 0.58; yRange = 0.18; break;
+    case 'KR': yBase = 0.60; yRange = 0.16; break;
+    case 'JP': yBase = 0.62; yRange = 0.16; break;
+    case 'US': yBase = 0.58; yRange = 0.18; break;
+    case 'DE': yBase = 0.62; yRange = 0.12; break;
   }
 
   // 맵 타입 랜덤 (이전 맵 제외)
@@ -551,60 +551,57 @@ function generateTerrain(continent = 'KR', mapWidth = CANVAS_WIDTH) {
     let y = H * yBase + noise;
     switch (mapType) {
       case 'flat':
-        y = H * (yBase + 0.05) + (Math.random() - 0.5) * H * 0.05;
+        y = H * 0.65 + (Math.random() - 0.5) * H * 0.04;
         break;
       case 'peak':
-        // 중앙 봉우리 — 가운데 높음 (y 작음)
-        y -= (1 - centerDist) * H * 0.30;
+        // 중앙 봉우리 — 너무 높지 않게
+        y -= (1 - centerDist) * H * 0.18;
         break;
       case 'valley':
-        // 중앙 협곡 — 가운데 낮음 (y 큼)
-        y += (1 - centerDist) * H * 0.25;
+        // 중앙 협곡
+        y += (1 - centerDist) * H * 0.15;
         break;
       case 'twin_peaks': {
-        // 양 사이드 봉우리 (tPos = 0.25, 0.75 에서 가장 높음)
+        // 양 사이드 봉우리 (tPos = 0.25, 0.75)
         const peakDist = Math.min(Math.abs(tPos - 0.25), Math.abs(tPos - 0.75));
-        y -= Math.max(0, (1 - peakDist * 3)) * H * 0.28;
+        y -= Math.max(0, (1 - peakDist * 3)) * H * 0.18;
         break;
       }
       case 'island':
-        // 가운데 봉우리 + 양 끝 깊은 절벽
-        if (centerDist < 0.4) y -= (1 - centerDist / 0.4) * H * 0.25;     // 중앙 봉우리
-        else if (centerDist > 0.7) y += (centerDist - 0.7) / 0.3 * H * 0.35;  // 양 끝 절벽
+        // 가운데 봉우리 + 양 끝 절벽
+        if (centerDist < 0.4) y -= (1 - centerDist / 0.4) * H * 0.16;
+        else if (centerDist > 0.7) y += (centerDist - 0.7) / 0.3 * H * 0.20;
         break;
       case 'plateau':
         // 중앙 평평한 고원 + 좌우 비탈
-        if (centerDist < 0.35) y -= H * 0.20;
-        else y -= (1 - (centerDist - 0.35) / 0.65) * H * 0.10;
+        if (centerDist < 0.35) y -= H * 0.12;
+        else y -= (1 - (centerDist - 0.35) / 0.65) * H * 0.06;
         break;
       case 'staircase':
         // 점진 상승 (왼→오) 또는 (오→왼)
         {
           const direction = (Math.sin(Date.now() / 7919) > 0) ? 1 : -1;
-          y -= (direction > 0 ? tPos : (1 - tPos)) * H * 0.30;
+          y -= (direction > 0 ? tPos : (1 - tPos)) * H * 0.18;
         }
         break;
       case 'floating_islands': {
-        // 3개 platform: 양옆 + 가운데. 사이는 깊은 골 (수직 절벽)
-        // platform 중심: tPos = 0.15, 0.5, 0.85
+        // 3개 platform: 양옆 + 가운데. 사이는 깊은 골
         const centers = [0.15, 0.5, 0.85];
-        let nearest = 1, dMin = Infinity;
-        centers.forEach(c => { const d = Math.abs(tPos - c); if (d < dMin) { dMin = d; nearest = c; }});
+        let dMin = Infinity;
+        centers.forEach(c => { const d = Math.abs(tPos - c); if (d < dMin) dMin = d; });
         if (dMin < 0.08) {
-          // platform 위
-          y = H * 0.42 + (Math.random() - 0.5) * H * 0.04;
+          y = H * 0.55 + (Math.random() - 0.5) * H * 0.03;
         } else {
-          // 골짜기 — 매우 깊음 (떨어지면 큰 낙하)
-          y = H * 0.80 + (Math.random() - 0.5) * H * 0.04;
+          y = H * 0.80 + (Math.random() - 0.5) * H * 0.03;   // 골짜기
         }
         break;
       }
       case 'pit': {
-        // 가운데 (tPos 0.4~0.6) 가 매우 깊은 구덩이 — 떨어지면 사실상 즉사
+        // 가운데가 깊은 구덩이
         if (centerDist < 0.25) {
-          y = H * 0.82 + (Math.random() - 0.5) * H * 0.05;
+          y = H * 0.82 + (Math.random() - 0.5) * H * 0.04;
         } else {
-          y -= centerDist * H * 0.08;     // 양옆은 살짝 봉우리
+          y -= centerDist * H * 0.05;
         }
         break;
       }
@@ -758,7 +755,7 @@ function resetToLobby(room) {
     p.doubleShots = STARTING_DOUBLE_SHOTS;
     p.doubleShotPending = false;
     p.laserShots = 0;
-    p.repairKits = 1;
+    p.repairKits = 0;
     p.moveBudget = tankDef.move;
   });
 
@@ -829,7 +826,6 @@ function spawnItemBox(room) {
     return;
   }
   const mw = room.mapWidth || CANVAS_WIDTH;
-  const x = 220 + Math.random() * (mw - 440);
   // 박스 타입 — 8턴 이전엔 laser/repair만, 8턴 이후 nuke 일정 확률로 등장
   const turnsPassed = room.turnsTotal || 0;
   const r = Math.random();
@@ -837,13 +833,31 @@ function spawnItemBox(room) {
   if (turnsPassed >= 8 && r >= 0.85) type = 'nuke';        // 15% (8턴 이후만)
   else if (r < 0.55) type = 'laser';
   else type = 'repair';
-  // 타입별 y: 레이저/NUKE 는 공중에 떠있는 아이템, REPAIR(수리키트) 는 지면에 떨어진 아이템
-  let targetY;
+
+  // 타입별 위치 결정 — 공중 박스는 지형이 낮은 곳(평지/계곡) 위에 떨어지도록 5번까지 재시도
+  let x, targetY;
   if (type === 'repair') {
+    // 지면 안착 — 아무 x 면 됨
+    x = 220 + Math.random() * (mw - 440);
     const groundY = getTerrainY(room.terrain, x);
-    targetY = groundY - 14;       // 지면 표면 (박스 반높이만큼 위)
+    targetY = groundY - 14;
   } else {
-    targetY = 110 + Math.random() * 120;   // 공중 (laser/nuke 패러슈트)
+    // 공중 — 지형 표면보다 최소 80px 위, 화면 상단 30px 아래
+    let bestY = 110, bestX = 220 + Math.random() * (mw - 440);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const tryX = 220 + Math.random() * (mw - 440);
+      const groundY = getTerrainY(room.terrain, tryX);
+      const maxY = groundY - 80;        // 지형 위 80px 이상 띄움
+      if (maxY > 80) {
+        // 평지 위 — 60 ~ min(maxY, 230) 사이 random
+        bestX = tryX;
+        bestY = 60 + Math.random() * Math.max(20, Math.min(170, maxY - 60));
+        break;
+      }
+      // 봉우리에 가까운 위치면 다음 시도
+    }
+    x = bestX;
+    targetY = bestY;
   }
   room.itemBoxes.push({
     id: room.nextItemBoxId++,
@@ -1762,6 +1776,24 @@ function startFire(room, player, weaponType, useDouble) {
   return true;
 }
 
+// 탱크 이동 시 지면 박스 (REPAIR) 픽업 체크
+function checkPlayerGroundPickup(room, player) {
+  if (!room.itemBoxes || room.itemBoxes.length === 0) return;
+  for (let i = room.itemBoxes.length - 1; i >= 0; i--) {
+    const box = room.itemBoxes[i];
+    if (box.type !== 'repair') continue;   // 지면 박스만 (laser/nuke 는 공중, 발사체로 픽업)
+    const dx = player.x - box.x;
+    const dy = player.y - box.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 32) {
+      room.itemBoxes.splice(i, 1);
+      player.repairKits = (player.repairKits ?? 0) + 1;
+      io.to(room.id).emit('itemPickup', { playerId: player.id, playerName: player.name, type: 'repair' });
+      room.explosions.push({ x: box.x, y: box.y, radius: 22, time: Date.now(), kind: 'box' });
+      systemChat(room, `🔧 ${player.name} 수리키트 획득 (총 ${player.repairKits}개)`);
+    }
+  }
+}
+
 function ensureHost(room) {
   const ids = Object.keys(room.players);
   if (ids.length === 0) { room.host = null; return; }
@@ -2156,6 +2188,8 @@ io.on('connection', (socket) => {
     player.y = getTerrainY(r.terrain, newX) - TANK_HEIGHT / 2;
     // 소수점 누적 방지 — 정수로 라운드
     player.moveBudget = Math.max(0, Math.round(player.moveBudget - actualStep));
+    // 지면 박스 (REPAIR) 픽업 체크
+    checkPlayerGroundPickup(r, player);
 
     broadcastState(r);
   });
@@ -2196,6 +2230,8 @@ io.on('connection', (socket) => {
     player.y = getTerrainY(r.terrain, newX) - TANK_HEIGHT / 2;
     // 소수점 누적 방지 — 정수로 라운드
     player.moveBudget = Math.max(0, Math.round(player.moveBudget - actualStep));
+    // 지면 박스 (REPAIR) 픽업 체크
+    checkPlayerGroundPickup(r, player);
 
     broadcastState(r);
   });

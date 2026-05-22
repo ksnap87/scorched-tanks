@@ -1353,13 +1353,14 @@ canvas {
   background: rgba(30, 144, 255, 0.35);
   box-shadow: 0 0 12px rgba(30, 144, 255, 0.5);
 }
+/* SPEC 패널 — 게임 캔버스 오른쪽 바깥 (화면 우측 끝). 게임 시야 가리지 않음. */
 .spec-panel {
-  position: absolute;
-  top: 50px;
-  right: 12px;
+  position: fixed;
+  top: 70px;
+  right: 8px;
   z-index: 60;
-  width: 360px;
-  max-height: 80vh;
+  width: 300px;
+  max-height: calc(100vh - 100px);
   background: linear-gradient(135deg, rgba(15, 20, 30, 0.96), rgba(25, 30, 45, 0.96));
   border: 1px solid rgba(30, 144, 255, 0.4);
   border-radius: 10px;
@@ -1367,6 +1368,14 @@ canvas {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+/* 좁은 화면(캔버스 폭 > 화면 폭)에선 우측 끝이 캔버스를 가릴 수밖에 없으므로,
+   캔버스가 비례 축소된 상황에서도 우측 패널이 보이도록 폭 자동 줄임 */
+@media (max-width: 1750px) {
+  .spec-panel { width: 270px; }
+}
+@media (max-width: 1550px) {
+  .spec-panel { width: 240px; font-size: 0.92em; }
 }
 .spec-panel-header {
   display: flex;
