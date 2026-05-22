@@ -455,6 +455,18 @@ body {
   color: #e8e8e8;
   font-weight: 800;
   font-family: 'Orbitron', monospace;
+  text-align: left;
+}
+.lobby-v2 .player-list h3,
+.lobby-v2 .tank-select h3,
+.lobby-v3 .player-list h3,
+.lobby-v3 .tank-select h3 {
+  text-align: left;
+}
+.lobby-v3 .lobby-key-row,
+.lobby-v3 .lobby-tank-row,
+.lobby-v3 .lobby-tank-row .tank-grid {
+  text-align: left;
 }
 .lobby-v2 .tank-grid-row {
   display: grid !important;
