@@ -585,21 +585,20 @@ function generateTerrain(continent = 'KR', mapWidth = CANVAS_WIDTH) {
         }
         break;
       case 'floating_islands': {
-        // 3개 platform: 양옆 + 가운데. 사이는 깊은 골
+        // 3개 platform: 양옆 + 가운데. 사이는 깊은 골 (단 controls 영역 위까지만)
         const centers = [0.15, 0.5, 0.85];
         let dMin = Infinity;
         centers.forEach(c => { const d = Math.abs(tPos - c); if (d < dMin) dMin = d; });
         if (dMin < 0.08) {
           y = H * 0.55 + (Math.random() - 0.5) * H * 0.03;
         } else {
-          y = H * 0.80 + (Math.random() - 0.5) * H * 0.03;   // 골짜기
+          y = H * 0.74 + (Math.random() - 0.5) * H * 0.03;
         }
         break;
       }
       case 'pit': {
-        // 가운데가 깊은 구덩이
         if (centerDist < 0.25) {
-          y = H * 0.82 + (Math.random() - 0.5) * H * 0.04;
+          y = H * 0.76 + (Math.random() - 0.5) * H * 0.04;
         } else {
           y -= centerDist * H * 0.05;
         }
@@ -623,7 +622,8 @@ function generateTerrain(continent = 'KR', mapWidth = CANVAS_WIDTH) {
       (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * localT * localT +
       (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * localT * localT * localT
     );
-    terrain.push(Math.max(H * 0.18, Math.min(H * 0.88, y)));
+    // y 최대 한계 — 컨트롤 패널 (하단 ~120px) 영역에 탱크가 들어가지 않게
+    terrain.push(Math.max(H * 0.18, Math.min(H * 0.78, y)));
   }
 
   // 맵 타입 metadata 를 마지막 element 로 attach (room 에서 추출용)
