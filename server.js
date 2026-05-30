@@ -1487,6 +1487,20 @@ function startFire(room, player, weaponType, useDouble) {
     if (isFirstOfDouble) {
       setTimeout(() => {
         if (room.phase !== 'playing') return;
+        // 팀전: currentTurn 무관, alive 면 두 번째 발사
+        if (room.teamMode) {
+          if (!player.alive) {
+            player.doubleShotPending = false;
+            return;
+          }
+          const ok = startFire(room, player, weaponType, false);
+          if (!ok) {
+            player.doubleShotPending = false;
+            player.cooldownUntil = Date.now() + getCooldownMs(player, actualWeapon);   // stuck 방지
+          }
+          return;
+        }
+        // 일반전 (턴제)
         if (room.currentTurn !== player.id) return;
         if (!player.alive) {
           player.doubleShotPending = false;
@@ -2260,34 +2274,44 @@ io.on('connection', (socket) => {
   socket.on('setAngle', (angle) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
-    if (r.players[socket.id] && r.currentTurn === socket.id) {
-      const v = parseInt(angle);
-      if (!Number.isFinite(v)) return;
-      r.players[socket.id].angle = Math.max(0, Math.min(180, v));
-      broadcastState(r);
-    }
+    const p = r.players[socket.id];
+    if (!p || !p.alive) return;
+    // 팀전: 본인 alive면 항상 OK. 일반전: 본인 턴일 때만.
+    if (!r.teamMode && r.currentTurn !== socket.id) return;
+    const v = parseInt(angle);
+    if (!Number.isFinite(v)) return;
+    p.angle = Math.max(0, Math.min(180, v));
+    broadcastState(r);
   });
 
   socket.on('setPower', (power) => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
-    if (r.players[socket.id] && r.currentTurn === socket.id) {
-      const v = parseInt(power);
-      if (!Number.isFinite(v)) return;
-      r.players[socket.id].power = Math.max(5, Math.min(150, v));
-      broadcastState(r);
-    }
+    const p = r.players[socket.id];
+    if (!p || !p.alive) return;
+    if (!r.teamMode && r.currentTurn !== socket.id) return;
+    const v = parseInt(power);
+    if (!Number.isFinite(v)) return;
+    p.power = Math.max(5, Math.min(150, v));
+    // 시즈 모드 시 power 최소 50
+    if (p.siegeMode === 'sieged' && p.power < 50) p.power = 50;
+    broadcastState(r);
   });
 
-  // 수리 (1회, HP 20% 회복)
+  // 수리 (HP 20% 회복)
   socket.on('repair', () => {
     const r = rooms[socket.data.roomId];
     if (!r) return;
     if (r.phase !== 'playing') return;
-    if (r.currentTurn !== socket.id) return;
-    if (r.projectile || r.airstrike) return;
     const player = r.players[socket.id];
     if (!player || !player.alive) return;
+    // 팀전: 본인 발사 cooldown 중 아니면 OK. 일반전: 본인 턴.
+    if (r.teamMode) {
+      if (Date.now() < (player.cooldownUntil || 0)) return;
+    } else {
+      if (r.currentTurn !== socket.id) return;
+      if (r.projectile || r.airstrike) return;
+    }
     if ((player.repairKits || 0) <= 0) return;
     const heal = Math.round((player.maxHp || 100) * 0.2);
     player.hp = Math.min(player.maxHp || 100, player.hp + heal);
