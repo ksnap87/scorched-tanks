@@ -164,41 +164,32 @@ function botAct(bot, teamMode) {
   const serverAngle = 90 - uiAngle;
   const dist = Math.abs(dx);
   const power = Math.min(150, Math.max(30, dist / 8 + 25 + Math.random() * 20));
-  bot.socket.emit('setAngle', Math.round(serverAngle));
-  bot.socket.emit('setPower', Math.round(power));
   bot.lastShotTargetId = bestT.id;
   bot.lastShotTargetHp = bestT.hp;
   bot.lastShotProjectileSeen = false;
+  // setAngle / setPower / fire 를 한 socket 에서 연속 emit
+  // socket.io 는 동일 socket 내 emit 순서 보장 → server 가 setAngle → setPower → fire 순서로 처리
+  // 그 사이 다른 봇 발사 race 없음 (200ms 대기 제거)
+  bot.socket.emit('setAngle', Math.round(serverAngle));
+  bot.socket.emit('setPower', Math.round(power));
+  bot.socket.emit('fire');
+  bot.lastShotAt = Date.now();
+  bot.myTurnFiredAt = Date.now();
+  bot.shotsFired++;
   setTimeout(() => {
-    // 발사 전 자기 턴 / cooldown 재확인 (200ms 사이 turn 바뀌었을 수 있음)
-    if (!bot.state || bot.state.phase !== 'playing') return;
-    const me2 = bot.state.players[bot.id];
-    if (!me2 || !me2.alive) return;
-    if (teamMode) {
-      if (Date.now() < (me2.cooldownUntil || 0)) return;
-      if (bot.state.projectile) return;
-    } else {
-      if (bot.state.currentTurn !== bot.id) return;
-      if (bot.state.projectile) return;
+    if (!bot.lastShotProjectileSeen) {
+      issue('NO_PROJECTILE', `BOT_${bot.idx} (${bot.tankId}): fire 후 projectile 미수신`);
+      bot.shotsMissed++;
     }
-    bot.socket.emit('fire');
-    bot.lastShotAt = Date.now();
-    bot.myTurnFiredAt = Date.now();
-    bot.shotsFired++;
-    setTimeout(() => {
-      if (!bot.lastShotProjectileSeen) {
-        issue('NO_PROJECTILE', `BOT_${bot.idx} (${bot.tankId}): fire 후 projectile 미수신`);
-        bot.shotsMissed++;
-      }
-    }, 3000);
-    setTimeout(() => {
-      if (!bot.state || !bot.state.players) return;
-      const target = bot.state.players[bot.lastShotTargetId];
-      if (!target) return;
-      const dmg = (bot.lastShotTargetHp || 0) - (target.hp || 0);
-      if (dmg > 0) bot.hpDamageDealt += dmg;
-    }, 6000);
-  }, 200);
+  }, 3000);
+  // 데미지 측정 (6초 후 target hp 비교)
+  setTimeout(() => {
+    if (!bot.state || !bot.state.players) return;
+    const target = bot.state.players[bot.lastShotTargetId];
+    if (!target) return;
+    const dmg = (bot.lastShotTargetHp || 0) - (target.hp || 0);
+    if (dmg > 0) bot.hpDamageDealt += dmg;
+  }, 6000);
 }
 
 // 시즈 토글 (팀전 전용, 30% 확률)

@@ -3315,24 +3315,20 @@ function drawTankBarrel(player, isMyTurn) {
   ctx.save();   // ★ ctx 상태 누수 차단 — 함수 끝에서 restore
   const x = player.x, y = player.y, color = player.color;
   const tt = player.tankType;
-  let len = 22, width = 4, offY = -4;
+  // 시각 폭/오프셋 (length 는 SharedMuzzle 에서 권위)
+  let width = 4, offY = -4;
   switch (tt) {
-    case 'K2':    len = 26; width = 3;   offY = -7;  break;  // 길고 슬림
-    case 'M1A2':  len = 24; width = 5;   offY = -9;  break;  // 굵음
-    case 'T90':   len = 22; width = 3.5; offY = -6;  break;  // 표준
-    case 'LEO2':  len = 28; width = 3;   offY = -7;  break;  // 장거리 = 가장 김
-    case 'T10':   len = 20; width = 3;   offY = -7;  break;  // 짧음
-    case 'ZTZ99': len = 22; width = 3.5; offY = -5;  break;  // 표준
+    case 'K2':    width = 3;   offY = -7;  break;
+    case 'M1A2':  width = 5;   offY = -9;  break;
+    case 'T90':   width = 3.5; offY = -6;  break;
+    case 'LEO2':  width = 3;   offY = -7;  break;
+    case 'T10':   width = 3;   offY = -7;  break;
+    case 'ZTZ99': width = 3.5; offY = -5;  break;
   }
-  // 시즈모드 — 포신 길어짐 (1.5배)
-  if (player.siegeMode === 'sieged') len *= 1.5;
-  else if (player.siegeMode === 'transforming') {
-    const phase = Math.min(1, (Date.now() - (player.siegeChangedAt || 0)) / 4000);
-    len *= (1 + 0.5 * phase);
-  } else if (player.siegeMode === 'untransforming') {
-    const phase = Math.max(0, 1 - (Date.now() - (player.siegeChangedAt || 0)) / 4000);
-    len *= (1 + 0.5 * phase);
-  }
+  // 포신 길이 — server fireLaserBeam / simulateProjectile 과 동일 (SharedMuzzle 단일 진실)
+  const len = (typeof SharedMuzzle !== 'undefined')
+    ? SharedMuzzle.getBarrelLenAnimated(tt, player.siegeMode, player.siegeChangedAt)
+    : 22;
   const angle = player.angle * Math.PI / 180;
   const startX = x;
   const startY = y + offY;

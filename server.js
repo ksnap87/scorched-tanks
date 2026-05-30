@@ -5,6 +5,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const SharedMuzzle = require('./public/shared/muzzle');
 
 const app = express();
 const server = http.createServer(app);
@@ -1246,25 +1247,12 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 // Leopard 2 — 직선 레이저 빔 발사. 지형 관통 (땅 깎임) + 닿는 모든 탱크에 damage.
 function fireLaserBeam(room, shooter, bomb2Spec) {
   const mw = room.mapWidth || CANVAS_WIDTH;
-  // 발사 시점의 탱크 기울기 (effective angle) — 클라 포신 회전과 일치 (부호: angle - tiltDeg)
-  let tiltDeg = 0;
-  if (room.terrain && shooter.siegeMode !== 'sieged') {
-    const yL = getTerrainY(room.terrain, shooter.x - 16);
-    const yR = getTerrainY(room.terrain, shooter.x + 16);
-    const tr = Math.atan2(yR - yL, 32);
-    if (Number.isFinite(tr)) tiltDeg = Math.max(-40, Math.min(40, tr * 180 / Math.PI));
-  }
-  const effAngle = (shooter.angle || 90) - tiltDeg;
-  const rad = effAngle * Math.PI / 180;
-  // 시작점 (포구) — 포신 끝. 시즈모드면 포신 1.5배 (클라 drawTankBarrel 과 일치)
-  const baseLen = BARREL_LEN_BY_TANK[shooter.tankType] || 22;
-  const barrelLen = baseLen * (shooter.siegeMode === 'sieged' ? 1.5 : 1.0);
-  const turretY = shooter.y - 4;
-  const startX = shooter.x + Math.cos(rad) * barrelLen;
-  const startY = turretY - Math.sin(rad) * barrelLen;
-  // 방향 단위벡터 (server: 0=오른쪽, 90=위 → dx=cos, dy=-sin)
-  const dx = Math.cos(rad);
-  const dy = -Math.sin(rad);
+  // 공유 muzzle 계산 — 클라 drawTankBarrel 과 동일 결과 보장
+  const m = SharedMuzzle.computeMuzzle(shooter, room.terrain);
+  const startX = m.x;
+  const startY = m.y;
+  const dx = m.dx;
+  const dy = m.dy;
   const range = bomb2Spec.range || 290;
   const damage = bomb2Spec.damage || 50;
   const beamWidth = bomb2Spec.beamWidth || 8;
@@ -1352,31 +1340,13 @@ function simulateProjectile(startX, startY, angle, power, shooter, room) {
   const tankDef = shooter ? getTankDef(shooter.tankType) : getTankDef(DEFAULT_TANK);
   const factor = (tankDef.range || 1.0) * (tankDef.speed || 1.0);
 
-  // 지형 기울기 — 클라 포신과 동일한 방향으로 발사 (시즈모드는 수평 고정)
-  // 클라: ctx.rotate(tiltRad) 시계방향 좌표계 안에서 player.angle 로 포신 그림.
-  //   회전된 좌표계의 "위"는 월드 기준 오른쪽 위 (sin(tilt), -cos(tilt)).
-  // 서버 convention: 0=오른쪽, 90=위. 이 방향을 server angle 로 환산하면 angle=90-tiltDeg.
-  //   따라서 일반화: effAngle = userAngle - tiltDeg.
-  let tiltDeg = 0;
-  if (room && room.terrain && (!shooter || shooter.siegeMode !== 'sieged')) {
-    const yL = getTerrainY(room.terrain, startX - 16);
-    const yR = getTerrainY(room.terrain, startX + 16);
-    const tiltRad = Math.atan2(yR - yL, 32);
-    if (Number.isFinite(tiltRad)) {
-      tiltDeg = Math.max(-40, Math.min(40, tiltRad * 180 / Math.PI));
-    }
-  }
-  const effAngle = angle - tiltDeg;
-  const radians = effAngle * Math.PI / 180;
-
-  // 포신 끝(머즐)에서 발사 — 탱크 포탑 중심 (startY - 4) 기준. 시즈모드면 포신 1.5배 (클라 일치)
-  const turretY = startY - 4;
-  const baseLenN = BARREL_LEN_BY_TANK[shooter ? shooter.tankType : null] || 22;
-  const barrelLen = baseLenN * (shooter && shooter.siegeMode === 'sieged' ? 1.5 : 1.0);
-  const muzzleX = startX + Math.cos(radians) * barrelLen;
-  const muzzleY = turretY - Math.sin(radians) * barrelLen;
-  const vx = Math.cos(radians) * power * 0.18 * factor;
-  const vy = -Math.sin(radians) * power * 0.18 * factor;
+  // 공유 muzzle 계산 — 클라 drawTankBarrel 과 동일 결과 보장
+  const shooterLike = shooter || { x: startX, y: startY, angle, tankType: DEFAULT_TANK, siegeMode: 'idle' };
+  const m = SharedMuzzle.computeMuzzle({ ...shooterLike, x: startX, y: startY, angle }, room && room.terrain);
+  const muzzleX = m.x;
+  const muzzleY = m.y;
+  const vx = m.dx * power * 0.18 * factor;
+  const vy = m.dy * power * 0.18 * factor;
 
   return { x: muzzleX, y: muzzleY, vx, vy };
 }
