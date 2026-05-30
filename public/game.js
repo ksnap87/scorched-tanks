@@ -1142,9 +1142,18 @@ function updateControls() {
   btnFire.style.opacity = isMyTurn ? '1' : '0.3';
 }
 
+// 본인이 액션 가능한지 — 일반전: 자기 턴, 팀전: 항상 (cooldown 은 server 가 거부)
+function canAct() {
+  if (!state) return false;
+  const me = state.players && state.players[myId];
+  if (!me || !me.alive) return false;
+  if (state.teamMode) return true;
+  return state.currentTurn === myId;
+}
+
 // 키보드/한 스텝 이동 (5px)
 function moveTankOnce(direction) {
-  if (!state || state.currentTurn !== myId) return;
+  if (!canAct()) return;
   const me = state.players[myId];
   if (!me) return;
   if ((me.moveBudget ?? 0) <= 0) {
@@ -1158,7 +1167,7 @@ function moveTankOnce(direction) {
 
 // 숫자 입력으로 N px 이동
 function moveTankByDistance(direction) {
-  if (!state || state.currentTurn !== myId) return;
+  if (!canAct()) return;
   const me = state.players[myId];
   if (!me) return;
   if ((me.moveBudget ?? 0) <= 0) {
@@ -1200,7 +1209,7 @@ function toggleSiege() {
 }
 
 function useRepair() {
-  if (!state || state.currentTurn !== myId) return;
+  if (!canAct()) return;
   const me = state.players[myId];
   if (!me) return;
   if ((me.repairKits ?? 0) <= 0) {
@@ -1211,9 +1220,9 @@ function useRepair() {
 }
 
 function toggleDoubleShot() {
-  if (!state) return;
+  if (!canAct()) return;
   const me = state.players[myId];
-  if (!me || state.currentTurn !== myId) return;
+  if (!me) return;
   if (me.doubleShotPending) return;
   if ((me.doubleShots ?? 0) <= 0) {
     showToast('⚠️ 더블샷 보유 없음');
@@ -1229,10 +1238,9 @@ function toggleDoubleShot() {
 }
 
 function selectWeapon(w) {
-  if (!state) return;
+  if (!canAct()) return;
   const me = state.players[myId];
   if (!me) return;
-  if (state.currentTurn !== myId) return;
   if (w === 'laser_guided' && (me.laserShots ?? 0) <= 0) {
     showToast('⚠️ 필살기 보유 없음');
     return;
@@ -1333,7 +1341,7 @@ if (moveDistInput) {
 }
 
 function fire() {
-  if (!state || state.currentTurn !== myId) return;
+  if (!canAct()) return;
   const me = state.players[myId];
   if (!me) return;
   const weaponType = currentWeapon;
@@ -1364,10 +1372,15 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-  if (!state || state.currentTurn !== myId) return;
-
-  const me = state.players[myId];
+  if (!state) return;
+  const me = state.players && state.players[myId];
   if (!me) return;
+  // 팀전(실시간): 본인이 alive면 단축키 OK. 일반전(턴제): 본인 턴일 때만.
+  if (state.teamMode) {
+    if (!me.alive) return;
+  } else {
+    if (state.currentTurn !== myId) return;
+  }
 
   // A/D는 누르고 있으면 연속 이동 (repeat 허용). 나머지 단발 액션은 repeat 차단.
   const oneShotKeys = ['x', 'X', ' ', '1', '2', '3', '4', 'r', 'R', 's', 'S'];
@@ -3057,9 +3070,12 @@ function drawRadiationZones() {
   });
 }
 
-// === 정밀 유도탄 (T-10 bomb2) 가이드 점선 — 자기 턴 + guided 무기 선택 시 ===
+// === 정밀 유도탄 (T-10 bomb2) 가이드 점선 — 자기 액션 가능 + guided 무기 선택 시 ===
 function drawGuidedTrajectory() {
-  if (!state || state.currentTurn !== myId) return;
+  if (!state) return;
+  const meCheck = state.players && state.players[myId];
+  if (!meCheck) return;
+  if (!state.teamMode && state.currentTurn !== myId) return;
   if (currentWeapon !== 'redbean') return;
   if (projectile) return;
   const me = state.players[myId];
