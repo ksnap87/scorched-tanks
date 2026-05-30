@@ -251,6 +251,25 @@ if (!roomId) {
 const socket = io({
   query: { room: roomId },
   auth: { token: authToken || '' },
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 600,
+  reconnectionDelayMax: 3000,
+  timeout: 8000,
+});
+// 연결 상태 안내
+socket.on('disconnect', (reason) => {
+  if (typeof showToast === 'function') showToast(`⚠️ 연결 끊김 (${reason}) — 자동 재접속 중...`);
+});
+socket.on('connect', () => {
+  if (window._wasDisconnected) {
+    if (typeof showToast === 'function') showToast('✅ 재접속 완료');
+  }
+  window._wasDisconnected = false;
+});
+socket.on('connect_error', (err) => {
+  window._wasDisconnected = true;
+  console.warn('[socket connect_error]', err && err.message);
 });
 
 // DOM refs

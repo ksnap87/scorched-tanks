@@ -2387,6 +2387,14 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
+// 한 사용자/한 게임의 에러로 server process 가 죽지 않도록 안전망
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err && err.stack || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🎮 Scorched Earth server running on port ${PORT}`);
   console.log(`   Local:    http://localhost:${PORT}`);
