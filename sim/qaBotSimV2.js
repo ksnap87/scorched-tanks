@@ -170,6 +170,17 @@ function botAct(bot, teamMode) {
   bot.lastShotTargetHp = bestT.hp;
   bot.lastShotProjectileSeen = false;
   setTimeout(() => {
+    // 발사 전 자기 턴 / cooldown 재확인 (200ms 사이 turn 바뀌었을 수 있음)
+    if (!bot.state || bot.state.phase !== 'playing') return;
+    const me2 = bot.state.players[bot.id];
+    if (!me2 || !me2.alive) return;
+    if (teamMode) {
+      if (Date.now() < (me2.cooldownUntil || 0)) return;
+      if (bot.state.projectile) return;
+    } else {
+      if (bot.state.currentTurn !== bot.id) return;
+      if (bot.state.projectile) return;
+    }
     bot.socket.emit('fire');
     bot.lastShotAt = Date.now();
     bot.myTurnFiredAt = Date.now();
