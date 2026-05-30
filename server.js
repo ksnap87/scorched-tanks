@@ -1056,11 +1056,11 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   }
 
   // 운동에너지 비례 데미지: damage = (v² / v_ref²) × 무기 데미지 × 거리 감쇠
-  // 직격 즉사 방지 위해 cap. min 0.55 — 멀리 쏴서 drag 로 감속돼도 최소 보장.
+  // min 1.0 — 속도 감속과 무관하게 항상 base damage 보장 (운동에너지는 위쪽으로만 보너스)
   let speedFactor = 1.0;
   if (projectileSpeed != null && weaponType !== 'laser_guided') {
     const v2 = (projectileSpeed * projectileSpeed) / (SPEED_REF * SPEED_REF);
-    speedFactor = Math.max(0.55, Math.min(1.5, v2));
+    speedFactor = Math.max(1.0, Math.min(1.5, v2));
   }
   // APFSDS pierce: 운동에너지 추가 배수 (LEO2)
   if (weaponType === 'normal' && shooter) {
