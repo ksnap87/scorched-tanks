@@ -1256,8 +1256,9 @@ function fireLaserBeam(room, shooter, bomb2Spec) {
   }
   const effAngle = (shooter.angle || 90) - tiltDeg;
   const rad = effAngle * Math.PI / 180;
-  // 시작점 (포구) — 포신 끝
-  const barrelLen = (BARREL_LEN_BY_TANK[shooter.tankType] || 22) * 1.0;
+  // 시작점 (포구) — 포신 끝. 시즈모드면 포신 1.5배 (클라 drawTankBarrel 과 일치)
+  const baseLen = BARREL_LEN_BY_TANK[shooter.tankType] || 22;
+  const barrelLen = baseLen * (shooter.siegeMode === 'sieged' ? 1.5 : 1.0);
   const turretY = shooter.y - 4;
   const startX = shooter.x + Math.cos(rad) * barrelLen;
   const startY = turretY - Math.sin(rad) * barrelLen;
@@ -1368,9 +1369,10 @@ function simulateProjectile(startX, startY, angle, power, shooter, room) {
   const effAngle = angle - tiltDeg;
   const radians = effAngle * Math.PI / 180;
 
-  // 포신 끝(머즐)에서 발사 — 탱크 포탑 중심 (startY - 4) 기준
+  // 포신 끝(머즐)에서 발사 — 탱크 포탑 중심 (startY - 4) 기준. 시즈모드면 포신 1.5배 (클라 일치)
   const turretY = startY - 4;
-  const barrelLen = BARREL_LEN_BY_TANK[shooter ? shooter.tankType : null] || 22;
+  const baseLenN = BARREL_LEN_BY_TANK[shooter ? shooter.tankType : null] || 22;
+  const barrelLen = baseLenN * (shooter && shooter.siegeMode === 'sieged' ? 1.5 : 1.0);
   const muzzleX = startX + Math.cos(radians) * barrelLen;
   const muzzleY = turretY - Math.sin(radians) * barrelLen;
   const vx = Math.cos(radians) * power * 0.18 * factor;
