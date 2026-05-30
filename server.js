@@ -1094,12 +1094,10 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < radius * 1.5) {
-      // 자해 허용 — 본인 폭탄에 본인도 데미지 받음 (단 50% 만, "잘못 쏨" 패널티 적당히)
+      // 자해 = 상대 데미지 동일 (사용자 정책: 잘못 쏘면 똑같이 피 닳음)
       const siegeMul = (shooter && shooter.siegeMode === 'sieged') ? 1.20 : 1.0;
-      const isSelf = (shooter && id === shooter.id);
-      const selfMul = isSelf ? 0.5 : 1.0;
-      const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)) * siegeMul * selfMul);
-      const actualDamage = Math.max(damage, isSelf ? 2 : 5);
+      const damage = Math.round(maxDamage * speedFactor * (1 - dist / (radius * 1.5)) * siegeMul);
+      const actualDamage = Math.max(damage, 5);
       player.hp = Math.max(0, player.hp - actualDamage);
       // shooter 통계 추적 (자기 자신 피격은 제외)
       if (shooter && shooter.id !== id) {
@@ -1852,11 +1850,10 @@ setInterval(() => {
           // 탱크가 지면 근처에 있어야 (지표면 따라 흐름)
           const groundY = getTerrainY(room.terrain, p.x);
           if (Math.abs(p.y - groundY) > 40) return;
-          // 중심에서 멀수록 데미지 약하게 (흐름 끝은 얇음). 본인은 50%
+          // 중심에서 멀수록 데미지 약하게. 본인 zone 도 동일 데미지 (자해 동일 정책)
           const distNorm = Math.abs(p.x - z.x) / Math.max(1, baseSpread * Math.max(leftFlow, rightFlow));
           const intensity = Math.max(0.35, 1 - distNorm * 0.7);
-          const isSelfZone = (z.shooterId === p.id);
-          const dmg = z.dps * intensity * (isSelfZone ? 0.5 : 1.0);
+          const dmg = z.dps * intensity;
           p.hp = Math.max(0, p.hp - dmg);
           changed = true;
           p.radiationHitAt = now;
@@ -1880,8 +1877,7 @@ setInterval(() => {
           const dx = p.x - z.x;
           const dy = p.y - z.y;
           if (Math.sqrt(dx * dx + dy * dy) < z.radius) {
-            const isSelfFire = (z.shooterId === p.id);
-            const fireDmg = z.dps * (isSelfFire ? 0.5 : 1.0);
+            const fireDmg = z.dps;     // 자해 동일 데미지
             p.hp = Math.max(0, p.hp - fireDmg);
             changed = true;
             p.radiationHitAt = now;
