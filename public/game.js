@@ -979,21 +979,47 @@ function updateHUD() {
   if (hudRound) hudRound.textContent = `${state.round} / ${state.maxRounds}`;
   if (hudRoom) hudRoom.textContent = roomId;
 
-  const currentPlayer = state.players[state.currentTurn];
-  if (currentPlayer) {
-    turnName.textContent = currentPlayer.name;
-    turnName.style.color = currentPlayer.color;
-    turnDot.style.color = currentPlayer.color;
-    turnDot.style.background = currentPlayer.color;
-  }
-
+  const turnLabel = document.getElementById('turnLabel');
   const w = state.wind;
   windArrow.textContent = w >= 0 ? '→' : '←';
   windArrow.style.transform = 'none';
   windValue.textContent = Math.abs(w).toFixed(3);
 
-  timerCircle.textContent = state.turnTimeLeft;
-  timerCircle.classList.toggle('urgent', state.turnTimeLeft <= 5);
+  if (state.teamMode) {
+    // 팀전 = 실시간 모드. 본인 cooldown 표시
+    turnName.textContent = '⚔️ REAL-TIME';
+    turnName.style.color = '#FFD93D';
+    turnDot.style.background = '#FFD93D';
+    if (turnLabel) turnLabel.textContent = 'MODE';
+    const me = state.players && state.players[myId];
+    const cdLeft = me ? Math.max(0, ((me.cooldownUntil || 0) - Date.now()) / 1000) : 0;
+    if (cdLeft > 0.05) {
+      timerCircle.textContent = cdLeft.toFixed(1);
+      timerCircle.classList.add('urgent');
+      timerCircle.title = '본인 장전 중';
+    } else if (me && (me.siegeMode === 'transforming' || me.siegeMode === 'untransforming')) {
+      timerCircle.textContent = '⚙';
+      timerCircle.classList.add('urgent');
+      timerCircle.title = '시즈 변환 중';
+    } else {
+      timerCircle.textContent = '⚡';
+      timerCircle.classList.remove('urgent');
+      timerCircle.title = '발사 가능';
+    }
+  } else {
+    // 일반전 = 턴제
+    const currentPlayer = state.players && state.players[state.currentTurn];
+    if (currentPlayer) {
+      turnName.textContent = currentPlayer.name;
+      turnName.style.color = currentPlayer.color;
+      turnDot.style.color = currentPlayer.color;
+      turnDot.style.background = currentPlayer.color;
+    }
+    if (turnLabel) turnLabel.textContent = 'TURN';
+    timerCircle.textContent = state.turnTimeLeft;
+    timerCircle.classList.toggle('urgent', state.turnTimeLeft <= 5);
+    timerCircle.title = '턴 남은 시간';
+  }
 }
 
 function updateControls() {
