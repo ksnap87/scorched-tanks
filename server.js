@@ -419,11 +419,29 @@ function getCooldownMs(player, weaponType) {
 }
 
 // === Teams ===
+// 팀 색 (모든 같은 팀 동일 색깔)
+const TEAM_COLOR_A = '#FF4757';      // A팀 빨강
+const TEAM_COLOR_B = '#1E90FF';      // B팀 파랑
+
 function assignTeams(room) {
   const ids = Object.keys(room.players);
-  // 입장 순서대로 A, B 번갈아
+  // 입장 순서대로 A, B 번갈아 + 같은 팀 같은 색
   ids.forEach((id, i) => {
-    room.players[id].team = i % 2 === 0 ? 'A' : 'B';
+    const team = i % 2 === 0 ? 'A' : 'B';
+    room.players[id].team = team;
+    room.players[id]._origColor = room.players[id]._origColor || room.players[id].color;
+    room.players[id].color = team === 'A' ? TEAM_COLOR_A : TEAM_COLOR_B;
+  });
+}
+
+// 팀전 해제 시 원래 색 복원
+function restoreSoloColors(room) {
+  Object.values(room.players).forEach(p => {
+    if (p._origColor) {
+      p.color = p._origColor;
+      p._origColor = null;
+    }
+    p.team = null;
   });
 }
 
@@ -2095,6 +2113,9 @@ io.on('connection', (socket) => {
       return;
     }
     player.team = team;
+    // 팀 색 갱신 (같은 팀 = 같은 색)
+    if (!player._origColor) player._origColor = player.color;
+    player.color = team === 'A' ? TEAM_COLOR_A : TEAM_COLOR_B;
     broadcastState(r);
   });
 
@@ -2106,7 +2127,7 @@ io.on('connection', (socket) => {
     if (r.phase !== 'lobby') return;
     r.teamMode = !!enabled;
     if (r.teamMode) assignTeams(r);
-    else Object.values(r.players).forEach(p => { p.team = null; });
+    else restoreSoloColors(r);
     broadcastState(r);
   });
 
