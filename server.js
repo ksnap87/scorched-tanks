@@ -1492,6 +1492,8 @@ function startFire(room, player, weaponType, useDouble) {
   }
   proj.isMultiPrimary = multiQueueRemaining > 0;
   room.projectile = proj;
+  // 발사 즉시 첫 projectileUpdate emit — 첫 tick 전에 충돌해도 클라가 발사체 시각적으로 받음
+  io.to(room.id).emit('projectileUpdate', proj);
 
   if (room.turnTimer) {
     clearInterval(room.turnTimer);
