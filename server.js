@@ -1788,14 +1788,17 @@ function startFire(room, player, weaponType, useDouble) {
     for (const id of Object.keys(room.players)) {
       const target = room.players[id];
       if (!target.alive) continue;
-      // 자해 허용 — 발사 직후 5 tick만 즉발 방지, 그 후엔 자기 포탄에 hit
+      // 발사 직후 짧은 면역 (자기/적 모두) — 발사체 시각상 보이도록
+      if (p.tickCount < 3) continue;
+      // 자해 허용 — 5 tick 후엔 자기 포탄에 hit
       if (target.id === p.shooterId && p.tickCount < 5) continue;
       const dx = target.x - px;
       const dy = target.y - py;
-      if (Math.sqrt(dx * dx + dy * dy) < 20) {
+      if (Math.sqrt(dx * dx + dy * dy) < 22) {
         room.projectile = null;
         clearInterval(simInterval);
-        detonate(px, py);
+        // 폭발 위치를 target 중심에 → AP 같은 좁은 반경도 데미지 보장
+        detonate(target.x, target.y);
         return;
       }
     }
