@@ -203,7 +203,7 @@ const STARTING_DOUBLE_SHOTS = 2;
 
 // Projectile physics
 const WIND_FACTOR = 0.32;
-const PROJECTILE_DRAG = 0.0012;
+const PROJECTILE_DRAG = 0.0008;     // 0.0012 → 0.0008: 비행 중 감속 줄임, 명중 시 v 보존
 
 // Laser-guided airstrike
 const LASER_DAMAGE = 70;
@@ -1056,12 +1056,11 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
   }
 
   // 운동에너지 비례 데미지: damage = (v² / v_ref²) × 무기 데미지 × 거리 감쇠
-  // 직격 즉사 방지 위해 cap 0.35 ~ 1.5 범위로 제한
-  // laser_guided 는 폭격기 무기라 속도 무관 (factor=1.0)
+  // 직격 즉사 방지 위해 cap. min 0.55 — 멀리 쏴서 drag 로 감속돼도 최소 보장.
   let speedFactor = 1.0;
   if (projectileSpeed != null && weaponType !== 'laser_guided') {
     const v2 = (projectileSpeed * projectileSpeed) / (SPEED_REF * SPEED_REF);
-    speedFactor = Math.max(0.35, Math.min(1.5, v2));
+    speedFactor = Math.max(0.55, Math.min(1.5, v2));
   }
   // APFSDS pierce: 운동에너지 추가 배수 (LEO2)
   if (weaponType === 'normal' && shooter) {
