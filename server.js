@@ -192,11 +192,11 @@ const CANVAS_HEIGHT = 700;
 const TERRAIN_RESOLUTION = 2;
 const GRAVITY = 0.15;
 const WIND_CHANGE_RANGE = 0.05;
-const EXPLOSION_RADIUS = 35;
+const EXPLOSION_RADIUS = 42;
 const TANK_WIDTH = 30;
 const TANK_HEIGHT = 16;
 const TANK_HP = 100;
-const PROJECTILE_DAMAGE = 35;
+const PROJECTILE_DAMAGE = 42;
 
 // Movement & items
 const MOVE_RANGE_PER_TURN = 200;
@@ -207,8 +207,8 @@ const WIND_FACTOR = 0.32;
 const PROJECTILE_DRAG = 0.0008;     // 0.0012 → 0.0008: 비행 중 감속 줄임, 명중 시 v 보존
 
 // Laser-guided airstrike
-const LASER_DAMAGE = 70;
-const LASER_RADIUS = 90;
+const LASER_DAMAGE = 84;
+const LASER_RADIUS = 108;
 const AIRSTRIKE_INCOMING_MS = 1800;
 const AIRSTRIKE_LINGER_MS = 1500;
 
@@ -258,39 +258,39 @@ const TANK_TYPES = {
   K2:    { id: 'K2',    name: 'K2 흑표',         country: '한국',   flag: '🇰🇷',
            hp: 125, range: 0.85, move: 150, speed: 1.0, moveSpeed: 2.0,
            desc: '단발 직격형 · 빨콩 65',
-           ammo:  { kind: 'HE',     radius: 11, damage: 32 },
-           bomb2: { kind: 'redbean', name: '빨콩',  damage: 65, radius: 8,  range: 1.3 },
-           ultimate: { kind: 'army_missile',    name: '한화 유도탄',   damage: 78, radius: 12, terrainRadius: 18 } },
+           ammo:  { kind: 'HE',     radius: 13.2, damage: 38.4 },
+           bomb2: { kind: 'redbean', name: '빨콩',  damage: 78, radius: 9.6,  range: 1.3 },
+           ultimate: { kind: 'army_missile',    name: '한화 유도탄',   damage: 93.6, radius: 14.4, terrainRadius: 18 } },
   M1A2:  { id: 'M1A2',  name: 'M1A2 에이브람스', country: '미국',   flag: '🇺🇸',
            hp: 140, range: 1.0, move: 95, speed: 1.0, moveSpeed: 1.4,
            desc: '탱키 (HP 140) · 멀티/카펫 · 느림',
-           ammo:  { kind: 'HE',     radius: 12, damage: 30 },
-           bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 13, radius: 4, range: 1.0, multi: 4, multiSpreadPx: 28, subDamageRatio: 0.85 },
-           ultimate: { kind: 'b2_carpet',       name: 'B-2 스피릿',    damage: 40, radius: 42, terrainRadius: 16 } },
+           ammo:  { kind: 'HE',     radius: 14.4, damage: 36 },
+           bomb2: { kind: 'multi',   name: '멀티탄 ×4', damage: 15.6, radius: 4.8, range: 1.0, multi: 4, multiSpreadPx: 28, subDamageRatio: 0.85 },
+           ultimate: { kind: 'b2_carpet',       name: 'B-2 스피릿',    damage: 48, radius: 50.4, terrainRadius: 16 } },
   T90:   { id: 'T90',   name: 'T-90',            country: '러시아', flag: '🇷🇺',
            hp: 128, range: 1.2, move: 130, speed: 1.0, moveSpeed: 1.3,
            desc: 'AP 관통 · 우라늄 광역 지속딜',
-           ammo:  { kind: 'AP',     radius: 6,  damage: 36, pierce: 1.20 },
-           bomb2: { kind: 'uranium', name: '우라늄탄', damage: 15, radius: 12, range: 1.2, dotRadius: 28, dotDps: 3, dotDuration: 9 },
-           ultimate: { kind: 'drone_grenade',   name: '드론 수류탄',   damage: 38, radius: 8,  terrainRadius: 10 } },
+           ammo:  { kind: 'AP',     radius: 7.2,  damage: 43.2, pierce: 1.20 },
+           bomb2: { kind: 'uranium', name: '우라늄탄', damage: 18, radius: 14.4, range: 1.2, dotRadius: 33.6, dotDps: 3.6, dotDuration: 9 },
+           ultimate: { kind: 'drone_grenade',   name: '드론 수류탄',   damage: 45.6, radius: 9.6,  terrainRadius: 10 } },
   T10:   { id: 'T10',   name: '10식',            country: '일본',   flag: '🇯🇵',
            hp: 110, range: 0.65, move: 175, speed: 1.0, moveSpeed: 2.4,
            desc: '닌자 (기동 175/2.4) · 정밀 유도',
-           ammo:  { kind: 'HE',     radius: 10, damage: 29 },
-           bomb2: { kind: 'guided', name: '정밀 유도탄', damage: 38, radius: 14, range: 0.95, guideMs: 5000 },
-           ultimate: { kind: 'kamikaze',        name: '카미카제',      damage: 58, radius: 24, terrainRadius: 22 } },
+           ammo:  { kind: 'HE',     radius: 12, damage: 34.8 },
+           bomb2: { kind: 'guided', name: '정밀 유도탄', damage: 45.6, radius: 16.8, range: 0.95, guideMs: 5000 },
+           ultimate: { kind: 'kamikaze',        name: '카미카제',      damage: 69.6, radius: 28.8, terrainRadius: 22 } },
   ZTZ99: { id: 'ZTZ99', name: 'ZTZ-99',          country: '중국',   flag: '🇨🇳',
            hp: 118, range: 0.55, move: 125, speed: 1.0, moveSpeed: 1.4,
            desc: '광역 화염 · 위성 레이저',
-           ammo:  { kind: 'HE',     radius: 15, damage: 28 },
-           bomb2: { kind: 'shotgun', name: '화염탄', damage: 18, radius: 30, range: 0.8, airBurst: 50, fire: { radius: 42, dps: 2.5, duration: 8 } },
-           ultimate: { kind: 'satellite_laser', name: '위성 레이저',   damage: 70, radius: 5,  terrainRadius: 28 } },
+           ammo:  { kind: 'HE',     radius: 18, damage: 33.6 },
+           bomb2: { kind: 'shotgun', name: '화염탄', damage: 21.6, radius: 36, range: 0.8, airBurst: 50, fire: { radius: 50.4, dps: 3, duration: 8 } },
+           ultimate: { kind: 'satellite_laser', name: '위성 레이저',   damage: 84, radius: 6,  terrainRadius: 28 } },
   LEO2:  { id: 'LEO2',  name: 'Leopard 2',       country: '독일',   flag: '🇩🇪',
            hp: 88, range: 1.5, move: 115, speed: 1.0, moveSpeed: 1.0,
            desc: '저격수 (사거리 1.5×) · HP 최약',
-           ammo:  { kind: 'APFSDS', radius: 16, damage: 36, pierce: 1.20 },
-           bomb2: { kind: 'laser_beam', name: '레이저', damage: 34, range: 250, beamWidth: 8, terrainDig: 12 },
-           ultimate: { kind: 'stuka_dive',       name: 'Stuka 급강하',  damage: 44, radius: 15, terrainRadius: 15 } },
+           ammo:  { kind: 'APFSDS', radius: 19.2, damage: 43.2, pierce: 1.20 },
+           bomb2: { kind: 'laser_beam', name: '레이저', damage: 40.8, range: 250, beamWidth: 9.6, terrainDig: 12 },
+           ultimate: { kind: 'stuka_dive',       name: 'Stuka 급강하',  damage: 52.8, radius: 18, terrainRadius: 15 } },
 };
 const DEFAULT_TANK = 'K2';
 function getTankDef(id) { return TANK_TYPES[id] || TANK_TYPES[DEFAULT_TANK]; }
@@ -1019,8 +1019,8 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
 
   if (weaponType === 'nuke') {
     // 핵폭탄 — 광역 파괴
-    radius = 200;
-    maxDamage = 200;
+    radius = 240;
+    maxDamage = 240;
     terrainRadius = 200;
   } else if (weaponType === 'redbean') {
     // REDBEAN 자리 = 탱크별 bomb2
@@ -1036,10 +1036,10 @@ function applyExplosion(room, x, y, weaponType = 'normal', projectileSpeed = nul
           maxDamage = maxDamage * (tankDef.bomb2.subDamageRatio || 0.8);
         }
       } else {
-        radius = 15; maxDamage = 80;
+        radius = 18; maxDamage = 96;
       }
     } else {
-      radius = 15; maxDamage = 80;
+      radius = 18; maxDamage = 96;
     }
   } else if (weaponType === 'laser_guided') {
     // 탱크별 ULTIMATE 차별
